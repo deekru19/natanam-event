@@ -50,20 +50,20 @@ const PerformanceTypeSelector: React.FC<PerformanceTypeSelectorProps> = ({
                 <h4 className="text-xl font-bold text-gray-800">{type.name}</h4>
               </div>
               <span className={`
-                text-lg font-bold px-3 py-1 rounded-full
+                text-sm font-medium px-3 py-1 rounded-full
                 ${selectedType === type.id
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                  : 'bg-gray-100 text-gray-700'
+                  ? 'bg-gradient-to-r from-rose-500 to-orange-500 text-white'
+                  : 'bg-slate-100 text-slate-600'
                 }
               `}>
-                ₹{type.pricePerSlot}
+                {type.name === 'Solo' ? '1 Person' : type.name === 'Duet' ? '2 People' : 'Group'}
               </span>
             </div>
             <p className="text-sm text-gray-600 font-medium">
               {type.formFields.length} field{type.formFields.length !== 1 ? 's' : ''} to fill
             </p>
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="flex items-center justify-between text-xs text-gray-500">
+            <div className="mt-4 pt-4 border-t border-slate-200">
+              <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>Duration: 10 min</span>
                 <span>Per slot</span>
               </div>

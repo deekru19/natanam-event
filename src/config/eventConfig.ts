@@ -9,7 +9,7 @@ export interface EventConfig {
 export interface PerformanceType {
   id: string;
   name: string;
-  pricePerSlot: number;
+  pricePerPerson: number;
   formFields: FormField[];
 }
 
@@ -30,7 +30,7 @@ export const eventConfig: EventConfig = {
     {
       id: "solo",
       name: "Solo",
-      pricePerSlot: 300,
+      pricePerPerson: 1500,
       formFields: [
         {
           id: "fullName",
@@ -86,7 +86,7 @@ export const eventConfig: EventConfig = {
     {
       id: "duet",
       name: "Duet",
-      pricePerSlot: 500,
+      pricePerPerson: 800,
       formFields: [
         {
           id: "participant1Name",
@@ -149,7 +149,7 @@ export const eventConfig: EventConfig = {
     {
       id: "group",
       name: "Group",
-      pricePerSlot: 700,
+      pricePerPerson: 500,
       formFields: [
         {
           id: "participantNames",

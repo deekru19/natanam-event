@@ -146,7 +146,7 @@ const AdminPanel: React.FC = () => {
                       Type
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Price/Slot
+                      Price/Person
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
                       Participant Name
@@ -170,7 +170,7 @@ const AdminPanel: React.FC = () => {
                       Category
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Total Amount
+                      Amount/Slot
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
                       Timestamp
@@ -209,7 +209,7 @@ const AdminPanel: React.FC = () => {
                       {booking.performanceTypeName}
                     </td>
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
-                      ₹{booking.pricePerSlot}
+                      ₹{booking.pricePerPerson}
                     </td>
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
                       {booking.participantName}
@@ -233,7 +233,7 @@ const AdminPanel: React.FC = () => {
                       {booking.performanceCategory || '-'}
                     </td>
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
-                      ₹{booking.totalAmount}
+                      ₹{booking.amountPerSlot}
                     </td>
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
                       {formatTimestamp(booking.timestamp)}

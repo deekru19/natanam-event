@@ -22,16 +22,42 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
     return <div>Invalid performance type.</div>;
   }
 
-  const totalCost = selectedSlots.length * selectedType.pricePerSlot;
+  const getParticipantCount = () => {
+    switch (performanceType) {
+      case 'solo':
+        return 1;
+      case 'duet':
+        return 2;
+      case 'group':
+        // Count participants from the textarea (assuming comma or newline separated)
+        const participantNames = participantDetails.participantNames || '';
+        if (participantNames.trim()) {
+          // Split by comma or newline and count non-empty entries
+          const participants = participantNames.split(/[,\n]/).filter((name: string) => name.trim()).length;
+          return Math.max(participants, 1); // At least 1 participant
+        }
+        return 3; // Default group size
+      default:
+        return 1;
+    }
+  };
+
+  const participantCount = getParticipantCount();
+  const totalCost = selectedSlots.length * selectedType.pricePerPerson * participantCount;
 
   const getParticipantDisplayName = () => {
     switch (performanceType) {
       case 'solo':
-        return participantDetails.name || 'N/A';
+        return participantDetails.fullName || 'N/A';
       case 'duet':
         return `${participantDetails.participant1Name || 'N/A'} & ${participantDetails.participant2Name || 'N/A'}`;
       case 'group':
-        return participantDetails.groupName || 'N/A';
+        const participantNames = participantDetails.participantNames || '';
+        if (participantNames.trim()) {
+          const participants = participantNames.split(/[,\n]/).filter((name: string) => name.trim());
+          return participants.length > 0 ? participants.join(', ') : 'N/A';
+        }
+        return 'N/A';
       default:
         return 'N/A';
     }
@@ -75,13 +101,29 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
         </div>
 
         <div className="border-t pt-4">
-          <div className="flex justify-between items-center text-lg font-semibold">
-            <span>Total Amount:</span>
-            <span className="text-blue-600">₹{totalCost}</span>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-sm text-slate-600">
+              <span>Price per person:</span>
+              <span>₹{selectedType.pricePerPerson}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm text-slate-600">
+              <span>Number of participants:</span>
+              <span>{participantCount}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm text-slate-600">
+              <span>Number of slots:</span>
+              <span>{selectedSlots.length}</span>
+            </div>
+            <div className="border-t pt-2 mt-2">
+              <div className="flex justify-between items-center text-base font-medium">
+                <span>Total Amount:</span>
+                <span className="text-slate-700">₹{totalCost.toLocaleString()}</span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                ₹{selectedType.pricePerPerson} × {participantCount} person{participantCount !== 1 ? 's' : ''} × {selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
-          <p className="text-sm text-gray-500 mt-1">
-            ₹{selectedType.pricePerSlot} × {selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''}
-          </p>
         </div>
       </div>
 
@@ -89,7 +131,7 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
         <h4 className="font-medium text-yellow-800 mb-2">Payment Instructions</h4>
         <ul className="text-sm text-yellow-700 space-y-1">
           <li>• Please complete the payment using UPI or any preferred method</li>
-          <li>• Amount to pay: ₹{totalCost}</li>
+          <li>• Amount to pay: ₹{totalCost.toLocaleString()}</li>
           <li>• You can optionally upload a screenshot of your payment proof</li>
           <li>• Your booking will be confirmed after payment verification</li>
         </ul>

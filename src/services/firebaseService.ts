@@ -25,7 +25,7 @@ export interface FlatBooking {
   timeSlot: string; // Individual time slot
   performanceType: string;
   performanceTypeName: string;
-  pricePerSlot: number;
+  pricePerPerson: number;
   participantName: string;
   // Solo fields
   participantAge?: string;
@@ -50,7 +50,7 @@ export interface FlatBooking {
   screenshotUrl?: string;
   timestamp?: any;
   totalSlots: number;
-  totalAmount: number;
+  amountPerSlot: number;
 }
 
 export interface Booking {
@@ -152,12 +152,37 @@ export const createBooking = async (booking: Booking): Promise<string> => {
     const performanceType = eventConfig.performanceTypes.find(
       (pt) => pt.id === booking.performanceType
     );
-    const pricePerSlot = performanceType?.pricePerSlot || 0;
-    const totalAmount = booking.timeSlots.length * pricePerSlot;
+    const pricePerPerson = performanceType?.pricePerPerson || 0;
+
+    // Calculate participant count
+    let participantCount = 1;
+    switch (booking.performanceType) {
+      case "solo":
+        participantCount = 1;
+        break;
+      case "duet":
+        participantCount = 2;
+        break;
+      case "group":
+        const participantNames = booking.participantDetails.participantNames || "";
+        if (participantNames.trim()) {
+          const participants = participantNames
+            .split(/[,\n]/)
+            .filter((name: string) => name.trim()).length;
+          participantCount = Math.max(participants, 1);
+        } else {
+          participantCount = 3; // Default group size
+        }
+        break;
+    }
+
+    const amountPerSlot = pricePerPerson * participantCount;
 
     console.log("💰 Pricing calculated:", {
-      pricePerSlot,
-      totalAmount,
+      pricePerPerson,
+      participantCount,
+      amountPerSlot,
+      totalAmount: amountPerSlot * booking.timeSlots.length,
       slotsCount: booking.timeSlots.length,
     });
 
@@ -190,7 +215,7 @@ export const createBooking = async (booking: Booking): Promise<string> => {
         timeSlot,
         performanceType: booking.performanceType,
         performanceTypeName: performanceType?.name || "",
-        pricePerSlot,
+        pricePerPerson,
         participantName,
         // Solo fields
         participantAge: booking.participantDetails.age,
@@ -215,7 +240,7 @@ export const createBooking = async (booking: Booking): Promise<string> => {
         screenshotUrl: booking.screenshotUrl,
         timestamp: serverTimestamp(),
         totalSlots: booking.timeSlots.length,
-        totalAmount,
+        amountPerSlot,
       };
 
       // Filter out undefined values to prevent Firebase errors
@@ -282,7 +307,7 @@ export const exportBookingsToCSV = async (date?: string): Promise<string> => {
     "Date",
     "Time Slot",
     "Performance Type",
-    "Price Per Slot",
+    "Price Per Person",
     "Participant Name",
     // Solo fields
     "Full Name",
@@ -304,7 +329,7 @@ export const exportBookingsToCSV = async (date?: string): Promise<string> => {
     "Performance Category",
     "Dance Style",
     "Total Slots",
-    "Total Amount",
+    "Amount Per Slot",
     "Screenshot URL",
     "Timestamp",
   ];
@@ -318,7 +343,7 @@ export const exportBookingsToCSV = async (date?: string): Promise<string> => {
         booking.date,
         booking.timeSlot,
         booking.performanceTypeName,
-        booking.pricePerSlot,
+        booking.pricePerPerson,
         `"${booking.participantName}"`,
         // Solo fields
         `"${booking.fullName || ""}"`,
@@ -340,7 +365,7 @@ export const exportBookingsToCSV = async (date?: string): Promise<string> => {
         `"${booking.performanceCategory || ""}"`,
         `"${booking.danceStyle}"`,
         booking.totalSlots,
-        booking.totalAmount,
+        booking.amountPerSlot,
         booking.screenshotUrl || "",
         booking.timestamp ? new Date(booking.timestamp.toDate()).toISOString() : "",
       ].join(",")
