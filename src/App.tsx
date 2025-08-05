@@ -22,6 +22,9 @@ const App: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
   const [isFirebaseTestMode, setIsFirebaseTestMode] = useState<boolean>(false);
+  const [showPasswordModal, setShowPasswordModal] = useState<boolean>(false);
+  const [password, setPassword] = useState<string>('');
+  const [passwordError, setPasswordError] = useState<string>('');
 
   const handleTypeSelection = (type: string) => {
     setPerformanceType(type);
@@ -29,6 +32,8 @@ const App: React.FC = () => {
   };
 
   const handleFormSubmit = (formData: Record<string, any>) => {
+    console.log('📝 Form data received:', formData);
+    console.log('📝 Form data keys:', Object.keys(formData));
     setParticipantDetails(formData);
     setCurrentStep('slots');
   };
@@ -97,6 +102,8 @@ const App: React.FC = () => {
       console.log('📝 Creating booking with data:', booking);
       console.log('📝 Performance type:', performanceType);
       console.log('📝 Participant details:', participantDetails);
+      console.log('📝 Participant details keys:', Object.keys(participantDetails));
+      console.log('📝 Participant details values:', Object.values(participantDetails));
 
       const bookingId = await createBooking(booking);
       console.log('✅ Booking created successfully with ID:', bookingId);
@@ -161,6 +168,24 @@ const App: React.FC = () => {
     setScreenshotUrl('');
     setError('');
     setCurrentStep('type');
+  };
+
+  const handleAdminClick = () => {
+    setShowPasswordModal(true);
+    setPassword('');
+    setPasswordError('');
+  };
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === '123') {
+      setIsAdminMode(true);
+      setShowPasswordModal(false);
+      setPassword('');
+      setPasswordError('');
+    } else {
+      setPasswordError('Incorrect password. Please try again.');
+    }
   };
 
   const renderStep = () => {
@@ -250,8 +275,18 @@ const App: React.FC = () => {
   // Firebase Test View
   if (isFirebaseTestMode) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm border-b">
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 relative overflow-hidden">
+        {/* Elegant background for Firebase test */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-10 left-10 w-40 h-40 bg-gradient-to-br from-emerald-200/40 to-teal-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float"></div>
+          <div className="absolute top-20 right-20 w-32 h-32 bg-gradient-to-br from-teal-200/40 to-cyan-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-2000"></div>
+          <div className="absolute bottom-10 left-1/4 w-48 h-48 bg-gradient-to-br from-cyan-200/40 to-blue-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-4000"></div>
+          
+          {/* Subtle tech pattern */}
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.03)_1px,transparent_1px)] bg-[size:30px_30px]"></div>
+        </div>
+        
+        <div className="bg-white/80 backdrop-blur-sm shadow-sm border-b border-slate-200 relative z-10">
           <div className="max-w-6xl mx-auto px-4 py-4">
             <div className="flex justify-between items-center">
               <h1 className="text-2xl font-bold text-gray-900">Firebase Connection Test</h1>
@@ -283,26 +318,36 @@ const App: React.FC = () => {
   // Admin Panel View
   if (isAdminMode) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm border-b">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 relative overflow-hidden">
+        {/* Elegant background for admin */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-10 left-10 w-40 h-40 bg-gradient-to-br from-blue-200/40 to-indigo-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float"></div>
+          <div className="absolute top-20 right-20 w-32 h-32 bg-gradient-to-br from-slate-200/40 to-blue-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-2000"></div>
+          <div className="absolute bottom-10 left-1/4 w-48 h-48 bg-gradient-to-br from-indigo-200/40 to-blue-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-4000"></div>
+          
+          {/* Subtle pattern */}
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
+        </div>
+        
+        <div className="bg-white/80 backdrop-blur-sm shadow-sm border-b border-slate-200 relative z-10">
           <div className="max-w-6xl mx-auto px-4 py-4">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-gray-900">Dance Event Admin</h1>
-              <div className="space-x-2">
-                <button
-                  onClick={() => setIsFirebaseTestMode(true)}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
-                >
-                  Test Firebase
-                </button>
-                <button
-                  onClick={() => setIsAdminMode(false)}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-                >
-                  ← Back to Registration
-                </button>
+                          <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold text-slate-800">Dance Event Admin</h1>
+                <div className="space-x-2">
+                  <button
+                    onClick={() => setIsFirebaseTestMode(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 transition-all duration-300 shadow-sm"
+                  >
+                    Test Firebase
+                  </button>
+                  <button
+                    onClick={() => setIsAdminMode(false)}
+                    className="px-4 py-2 bg-gradient-to-r from-slate-500 to-slate-600 text-white rounded-lg hover:from-slate-600 hover:to-slate-700 transition-all duration-300 shadow-sm"
+                  >
+                    ← Back to Registration
+                  </button>
+                </div>
               </div>
-            </div>
           </div>
         </div>
         <AdminPanel />
@@ -310,30 +355,115 @@ const App: React.FC = () => {
     );
   }
 
+  // Password Modal
+  if (showPasswordModal) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 relative overflow-hidden flex items-center justify-center">
+        {/* Elegant background for modal */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-gradient-to-br from-rose-200/30 to-pink-200/30 rounded-full mix-blend-multiply filter blur-3xl animate-float"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-gradient-to-br from-orange-200/30 to-yellow-200/30 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-2000"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-gradient-to-br from-amber-200/30 to-orange-200/30 rounded-full mix-blend-multiply filter blur-2xl animate-float animation-delay-4000"></div>
+        </div>
+        
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-white/60 max-w-md w-full mx-4 relative z-10">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-rose-600 to-orange-600 bg-clip-text text-transparent mb-2">
+              Admin Access
+            </h2>
+            <div className="w-16 h-1 bg-gradient-to-r from-rose-500 to-orange-500 mx-auto rounded-full mb-4"></div>
+            <p className="text-slate-600">Please enter the admin password to continue</p>
+          </div>
+          
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-300"
+                autoFocus
+              />
+              {passwordError && (
+                <p className="text-red-600 text-sm mt-2">{passwordError}</p>
+              )}
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setPassword('');
+                  setPasswordError('');
+                }}
+                className="flex-1 px-4 py-3 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-rose-500 to-orange-500 text-white rounded-xl hover:from-rose-600 hover:to-orange-600 transition-all duration-300 font-semibold"
+              >
+                Access Admin
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   // Registration Form View
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 relative overflow-hidden">
+      {/* Elegant background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Soft floating elements */}
+        <div className="absolute top-20 left-20 w-64 h-64 bg-gradient-to-br from-rose-200/40 to-pink-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float"></div>
+        <div className="absolute top-40 right-40 w-48 h-48 bg-gradient-to-br from-orange-200/40 to-yellow-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-2000"></div>
+        <div className="absolute bottom-20 left-1/3 w-56 h-56 bg-gradient-to-br from-amber-200/40 to-orange-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-4000"></div>
+        
+        {/* Subtle decorative lines */}
+        <div className="absolute top-1/4 left-0 w-full h-px bg-gradient-to-r from-transparent via-rose-300/30 to-transparent"></div>
+        <div className="absolute top-3/4 left-0 w-full h-px bg-gradient-to-r from-transparent via-orange-300/30 to-transparent"></div>
+        
+        {/* Delicate sparkles */}
+        <div className="absolute top-1/3 left-1/4 w-1 h-1 bg-rose-300/60 rounded-full animate-pulse"></div>
+        <div className="absolute top-2/3 right-1/3 w-1 h-1 bg-orange-300/60 rounded-full animate-pulse animation-delay-150"></div>
+        <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-amber-300/60 rounded-full animate-pulse animation-delay-4000"></div>
+        
+        {/* Soft texture overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-rose-50/30 via-orange-50/30 to-amber-50/30"></div>
+      </div>
+      
+      <div className="max-w-4xl mx-auto px-4 py-8 relative z-10">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-6">
             <div></div>
-            <h1 className="text-3xl font-bold text-gray-900">Dance Event Registration</h1>
+            <div className="text-center">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-rose-600 via-orange-600 to-amber-600 bg-clip-text text-transparent mb-2">
+                Dance Event Registration
+              </h1>
+              <div className="w-24 h-1 bg-gradient-to-r from-rose-500 to-orange-500 mx-auto rounded-full"></div>
+            </div>
             <button
-              onClick={() => setIsAdminMode(true)}
-              className="px-3 py-1 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              onClick={handleAdminClick}
+              className="px-4 py-2 text-sm bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-full hover:from-slate-700 hover:to-slate-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
             >
               Admin
             </button>
           </div>
-          <p className="text-gray-600">
+          <p className="text-slate-700 text-lg font-medium">
             Register for the quarterly dance event on {new Date(eventConfig.eventDate).toLocaleDateString()}
           </p>
         </div>
 
         {/* Progress Indicator */}
         <div className="mb-8">
-          <div className="flex items-center justify-center space-x-4">
+          <div className="flex items-center justify-center space-x-6">
             {['type', 'form', 'slots', 'payment', 'upload'].map((step, index) => {
               const stepNames = ['Choose Type', 'Fill Form', 'Select Slots', 'Payment', 'Upload'];
               const isActive = currentStep === step;
@@ -342,15 +472,17 @@ const App: React.FC = () => {
               return (
                 <div key={step} className="flex items-center">
                   <div className={`
-                    w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
-                    ${isActive ? 'bg-blue-600 text-white' : isCompleted ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}
+                    w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 transform hover:scale-110
+                    ${isActive ? 'bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-lg scale-110' : 
+                      isCompleted ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg' : 
+                      'bg-white/80 text-slate-400 border-2 border-slate-200 shadow-md'}
                   `}>
                     {isCompleted ? '✓' : index + 1}
                   </div>
                   {index < 4 && (
                     <div className={`
-                      w-12 h-1 mx-2
-                      ${isCompleted ? 'bg-green-500' : 'bg-gray-300'}
+                      w-16 h-1 mx-3 rounded-full transition-all duration-500
+                      ${isCompleted ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-slate-200'}
                     `} />
                   )}
                 </div>
@@ -360,16 +492,24 @@ const App: React.FC = () => {
         </div>
 
         {/* Main Content */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/60">
           {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="mb-6 bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs">!</span>
+                </div>
+                <p className="text-sm text-red-700 font-medium">{error}</p>
+              </div>
             </div>
           )}
 
           {loading && (
-            <div className="flex justify-center items-center p-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="flex justify-center items-center p-12">
+              <div className="relative">
+                <div className="w-12 h-12 border-4 border-rose-200 border-t-rose-500 rounded-full animate-spin"></div>
+                <div className="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-orange-500 rounded-full animate-spin animation-delay-150"></div>
+              </div>
             </div>
           )}
 

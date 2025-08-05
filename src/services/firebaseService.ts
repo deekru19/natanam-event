@@ -3,6 +3,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   collection,
   addDoc,
   serverTimestamp,
@@ -26,13 +27,25 @@ export interface FlatBooking {
   performanceTypeName: string;
   pricePerSlot: number;
   participantName: string;
+  // Solo fields
   participantAge?: string;
+  fullName?: string;
+  phoneNumber?: string;
+  email?: string;
+  // Duet fields
   participant1Name?: string;
   participant2Name?: string;
-  ages?: string;
+  participant1Phone?: string;
+  participant2Phone?: string;
+  // Group fields
   groupName?: string;
-  memberCount?: number;
   memberNames?: string;
+  representativePhone?: string;
+  // Common fields
+  cityResidence?: string;
+  rulesRead?: string;
+  guruName?: string;
+  performanceCategory?: string;
   danceStyle: string;
   screenshotUrl?: string;
   timestamp?: any;
@@ -119,6 +132,8 @@ export const createBooking = async (booking: Booking): Promise<string> => {
   try {
     console.log("🚀 Starting booking creation...");
     console.log("📊 Booking data:", booking);
+    console.log("📊 Participant details:", booking.participantDetails);
+    console.log("📊 Participant details keys:", Object.keys(booking.participantDetails));
 
     const bookingsCollection = collection(db, "bookings");
     const flatBookingsCollection = collection(db, "flatBookings");
@@ -150,7 +165,7 @@ export const createBooking = async (booking: Booking): Promise<string> => {
     let participantName = "";
     switch (booking.performanceType) {
       case "solo":
-        participantName = booking.participantDetails.name || "";
+        participantName = booking.participantDetails.fullName || "";
         break;
       case "duet":
         participantName = `${booking.participantDetails.participant1Name || ""} & ${
@@ -158,7 +173,7 @@ export const createBooking = async (booking: Booking): Promise<string> => {
         }`;
         break;
       case "group":
-        participantName = booking.participantDetails.groupName || "";
+        participantName = booking.participantDetails.participantNames || "";
         break;
     }
 
@@ -177,14 +192,26 @@ export const createBooking = async (booking: Booking): Promise<string> => {
         performanceTypeName: performanceType?.name || "",
         pricePerSlot,
         participantName,
+        // Solo fields
         participantAge: booking.participantDetails.age,
+        // Duet fields
         participant1Name: booking.participantDetails.participant1Name,
         participant2Name: booking.participantDetails.participant2Name,
-        ages: booking.participantDetails.ages,
-        groupName: booking.participantDetails.groupName,
-        memberCount: booking.participantDetails.memberCount,
-        memberNames: booking.participantDetails.memberNames,
-        danceStyle: booking.participantDetails.danceStyle || "",
+        participant1Phone: booking.participantDetails.participant1Phone,
+        participant2Phone: booking.participantDetails.participant2Phone,
+        // Group fields
+        groupName: booking.participantDetails.participantNames,
+        memberNames: booking.participantDetails.participantNames,
+        // Common fields
+        fullName: booking.participantDetails.fullName,
+        phoneNumber: booking.participantDetails.phoneNumber,
+        email: booking.participantDetails.email,
+        cityResidence: booking.participantDetails.cityResidence,
+        rulesRead: booking.participantDetails.rulesRead,
+        guruName: booking.participantDetails.guruName,
+        performanceCategory: booking.participantDetails.performanceCategory,
+        representativePhone: booking.participantDetails.representativePhone,
+        danceStyle: booking.participantDetails.performanceCategory || "",
         screenshotUrl: booking.screenshotUrl,
         timestamp: serverTimestamp(),
         totalSlots: booking.timeSlots.length,
@@ -257,13 +284,24 @@ export const exportBookingsToCSV = async (date?: string): Promise<string> => {
     "Performance Type",
     "Price Per Slot",
     "Participant Name",
+    // Solo fields
+    "Full Name",
+    "Phone Number",
+    "Email",
     "Age",
-    "Participant 1",
-    "Participant 2",
-    "Ages",
-    "Group Name",
-    "Member Count",
-    "Member Names",
+    // Duet fields
+    "Participant 1 Name",
+    "Participant 2 Name",
+    "Participant 1 Phone",
+    "Participant 2 Phone",
+    // Group fields
+    "Group Names",
+    "Representative Phone",
+    // Common fields
+    "City of Residence",
+    "Rules Read",
+    "Guru Name",
+    "Performance Category",
     "Dance Style",
     "Total Slots",
     "Total Amount",
@@ -282,13 +320,24 @@ export const exportBookingsToCSV = async (date?: string): Promise<string> => {
         booking.performanceTypeName,
         booking.pricePerSlot,
         `"${booking.participantName}"`,
+        // Solo fields
+        `"${booking.fullName || ""}"`,
+        `"${booking.phoneNumber || ""}"`,
+        `"${booking.email || ""}"`,
         booking.participantAge || "",
+        // Duet fields
         `"${booking.participant1Name || ""}"`,
         `"${booking.participant2Name || ""}"`,
-        `"${booking.ages || ""}"`,
+        `"${booking.participant1Phone || ""}"`,
+        `"${booking.participant2Phone || ""}"`,
+        // Group fields
         `"${booking.groupName || ""}"`,
-        booking.memberCount || "",
-        `"${booking.memberNames || ""}"`,
+        `"${booking.representativePhone || ""}"`,
+        // Common fields
+        `"${booking.cityResidence || ""}"`,
+        `"${booking.rulesRead || ""}"`,
+        `"${booking.guruName || ""}"`,
+        `"${booking.performanceCategory || ""}"`,
         `"${booking.danceStyle}"`,
         booking.totalSlots,
         booking.totalAmount,
@@ -342,4 +391,40 @@ export const validateSlotsAvailable = async (
   }
 
   return true;
+};
+
+// CRUD Operations for Admin Panel
+export const deleteBooking = async (bookingId: string): Promise<void> => {
+  const flatBookingsCollection = collection(db, "flatBookings");
+  const bookingRef = doc(flatBookingsCollection, bookingId);
+  await deleteDoc(bookingRef);
+};
+
+export const updateBooking = async (booking: FlatBooking): Promise<void> => {
+  if (!booking.id) {
+    throw new Error("Booking ID is required for update");
+  }
+
+  const flatBookingsCollection = collection(db, "flatBookings");
+  const bookingRef = doc(flatBookingsCollection, booking.id);
+
+  // Remove the id field before updating
+  const { id, ...updateData } = booking;
+
+  await updateDoc(bookingRef, {
+    ...updateData,
+    timestamp: serverTimestamp(),
+  });
+};
+
+export const addBooking = async (booking: FlatBooking): Promise<void> => {
+  const flatBookingsCollection = collection(db, "flatBookings");
+
+  // Add timestamp if not provided
+  const bookingData = {
+    ...booking,
+    timestamp: serverTimestamp(),
+  };
+
+  await addDoc(flatBookingsCollection, bookingData);
 };
