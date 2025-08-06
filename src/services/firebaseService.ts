@@ -182,7 +182,7 @@ export const createBooking = async (booking: Booking): Promise<string> => {
       pricePerPerson,
       participantCount,
       amountPerSlot,
-      totalAmount: amountPerSlot * booking.timeSlots.length,
+      totalAmountForAllSlots: amountPerSlot * booking.timeSlots.length,
       slotsCount: booking.timeSlots.length,
     });
 
@@ -421,8 +421,24 @@ export const validateSlotsAvailable = async (
 // CRUD Operations for Admin Panel
 export const deleteBooking = async (bookingId: string): Promise<void> => {
   const flatBookingsCollection = collection(db, "flatBookings");
+
+  // First, get the booking to find its time slot and date
   const bookingRef = doc(flatBookingsCollection, bookingId);
-  await deleteDoc(bookingRef);
+  const bookingDoc = await getDoc(bookingRef);
+
+  if (bookingDoc.exists()) {
+    const bookingData = bookingDoc.data() as FlatBooking;
+
+    // Delete the booking
+    await deleteDoc(bookingRef);
+
+    // Free up the time slot
+    await updateSlotStatus(bookingData.date, bookingData.timeSlot, "available");
+
+    console.log(`✅ Booking deleted and time slot ${bookingData.timeSlot} freed up`);
+  } else {
+    throw new Error("Booking not found");
+  }
 };
 
 export const updateBooking = async (booking: FlatBooking): Promise<void> => {
@@ -432,6 +448,23 @@ export const updateBooking = async (booking: FlatBooking): Promise<void> => {
 
   const flatBookingsCollection = collection(db, "flatBookings");
   const bookingRef = doc(flatBookingsCollection, booking.id);
+
+  // Get the original booking to check if time slot changed
+  const originalBookingDoc = await getDoc(bookingRef);
+  if (originalBookingDoc.exists()) {
+    const originalBooking = originalBookingDoc.data() as FlatBooking;
+
+    // If time slot changed, free up the old slot and book the new one
+    if (originalBooking.timeSlot !== booking.timeSlot) {
+      // Free up the old time slot
+      await updateSlotStatus(originalBooking.date, originalBooking.timeSlot, "available");
+
+      // Book the new time slot
+      await updateSlotStatus(booking.date, booking.timeSlot, "booked");
+
+      console.log(`✅ Time slot updated: ${originalBooking.timeSlot} → ${booking.timeSlot}`);
+    }
+  }
 
   // Remove the id field before updating
   const { id, ...updateData } = booking;
@@ -445,6 +478,9 @@ export const updateBooking = async (booking: FlatBooking): Promise<void> => {
 export const addBooking = async (booking: FlatBooking): Promise<void> => {
   const flatBookingsCollection = collection(db, "flatBookings");
 
+  // Book the time slot first
+  await updateSlotStatus(booking.date, booking.timeSlot, "booked");
+
   // Add timestamp if not provided
   const bookingData = {
     ...booking,
@@ -452,4 +488,24 @@ export const addBooking = async (booking: FlatBooking): Promise<void> => {
   };
 
   await addDoc(flatBookingsCollection, bookingData);
+
+  console.log(`✅ New booking added and time slot ${booking.timeSlot} booked`);
+};
+
+// Get available time slots for dropdowns
+export const getAvailableTimeSlots = async (date: string): Promise<string[]> => {
+  // Initialize slots for the date if they don't exist
+  await initializeSlotsForDate(date);
+
+  const slots = await getSlotsForDate(date);
+  const availableSlots: string[] = [];
+
+  for (const [timeSlot, status] of Object.entries(slots)) {
+    if (status === "available") {
+      availableSlots.push(timeSlot);
+    }
+  }
+
+  console.log(`Available slots for ${date}:`, availableSlots);
+  return availableSlots.sort();
 };

@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
-import TimeSlotSelector from './components/TimeSlotSelector';
-import PerformanceTypeSelector from './components/PerformanceTypeSelector';
-import RegistrationForm from './components/RegistrationForm';
-import PaymentSummary from './components/PaymentSummary';
-import ScreenshotUpload from './components/ScreenshotUpload';
-import AdminPanel from './components/AdminPanel';
-import FirebaseTest from './components/FirebaseTest';
+import React, { useState, lazy, Suspense } from 'react';
 import { createBooking, uploadScreenshot, updateSlotStatus, validateSlotsAvailable } from './services/firebaseService';
 import { getEventDate } from './utils/timeUtils';
 import { eventConfig } from './config/eventConfig';
+import LazyWrapper from './components/LazyWrapper';
+
+// Lazy load components for better performance
+const TimeSlotSelector = lazy(() => import('./components/TimeSlotSelector'));
+const PerformanceTypeSelector = lazy(() => import('./components/PerformanceTypeSelector'));
+const RegistrationForm = lazy(() => import('./components/RegistrationForm'));
+const PaymentSummary = lazy(() => import('./components/PaymentSummary'));
+const ScreenshotUpload = lazy(() => import('./components/ScreenshotUpload'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const FirebaseTest = lazy(() => import('./components/FirebaseTest'));
 
 type Step = 'type' | 'form' | 'slots' | 'payment' | 'upload' | 'success';
 
@@ -192,48 +195,58 @@ const App: React.FC = () => {
     switch (currentStep) {
       case 'type':
         return (
-          <PerformanceTypeSelector
-            selectedType={performanceType}
-            onTypeSelection={handleTypeSelection}
-          />
+          <LazyWrapper>
+            <PerformanceTypeSelector
+              selectedType={performanceType}
+              onTypeSelection={handleTypeSelection}
+            />
+          </LazyWrapper>
         );
       
       case 'form':
         return (
-          <RegistrationForm
-            performanceType={performanceType}
-            onSubmit={handleFormSubmit}
-            onBack={handleBack}
-          />
+          <LazyWrapper>
+            <RegistrationForm
+              performanceType={performanceType}
+              onSubmit={handleFormSubmit}
+              onBack={handleBack}
+            />
+          </LazyWrapper>
         );
       
       case 'slots':
         return (
-          <TimeSlotSelector
-            selectedSlots={selectedSlots}
-            onSlotSelection={handleSlotSelection}
-            onNext={handleSlotsNext}
-          />
+          <LazyWrapper>
+            <TimeSlotSelector
+              selectedSlots={selectedSlots}
+              onSlotSelection={handleSlotSelection}
+              onNext={handleSlotsNext}
+            />
+          </LazyWrapper>
         );
       
       case 'payment':
         return (
-          <PaymentSummary
-            selectedSlots={selectedSlots}
-            performanceType={performanceType}
-            participantDetails={participantDetails}
-            onBack={handleBack}
-            onProceed={handlePaymentProceed}
-          />
+          <LazyWrapper>
+            <PaymentSummary
+              selectedSlots={selectedSlots}
+              performanceType={performanceType}
+              participantDetails={participantDetails}
+              onBack={handleBack}
+              onProceed={handlePaymentProceed}
+            />
+          </LazyWrapper>
         );
       
       case 'upload':
         return (
-          <ScreenshotUpload
-            onUpload={handleScreenshotUpload}
-            onSkip={handleScreenshotSkip}
-            onBack={handleBack}
-          />
+          <LazyWrapper>
+            <ScreenshotUpload
+              onUpload={handleScreenshotUpload}
+              onSkip={handleScreenshotSkip}
+              onBack={handleBack}
+            />
+          </LazyWrapper>
         );
       
       case 'success':
@@ -310,7 +323,9 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-        <FirebaseTest />
+        <LazyWrapper>
+          <FirebaseTest />
+        </LazyWrapper>
       </div>
     );
   }
@@ -350,7 +365,9 @@ const App: React.FC = () => {
               </div>
           </div>
         </div>
-        <AdminPanel />
+        <LazyWrapper>
+          <AdminPanel />
+        </LazyWrapper>
       </div>
     );
   }
@@ -421,9 +438,9 @@ const App: React.FC = () => {
       {/* Elegant background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Soft floating elements */}
-        <div className="absolute top-20 left-20 w-64 h-64 bg-gradient-to-br from-rose-200/40 to-pink-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float"></div>
-        <div className="absolute top-40 right-40 w-48 h-48 bg-gradient-to-br from-orange-200/40 to-yellow-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-2000"></div>
-        <div className="absolute bottom-20 left-1/3 w-56 h-56 bg-gradient-to-br from-amber-200/40 to-orange-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-4000"></div>
+        <div className="absolute top-10 sm:top-20 left-10 sm:left-20 w-32 h-32 sm:w-64 sm:h-64 bg-gradient-to-br from-rose-200/40 to-pink-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float"></div>
+        <div className="absolute top-20 sm:top-40 right-10 sm:right-40 w-24 h-24 sm:w-48 sm:h-48 bg-gradient-to-br from-orange-200/40 to-yellow-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-2000"></div>
+        <div className="absolute bottom-10 sm:bottom-20 left-1/4 sm:left-1/3 w-28 h-28 sm:w-56 sm:h-56 bg-gradient-to-br from-amber-200/40 to-orange-200/40 rounded-full mix-blend-multiply filter blur-3xl animate-float animation-delay-4000"></div>
         
         {/* Subtle decorative lines */}
         <div className="absolute top-1/4 left-0 w-full h-px bg-gradient-to-r from-transparent via-rose-300/30 to-transparent"></div>
@@ -438,41 +455,38 @@ const App: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-br from-rose-50/30 via-orange-50/30 to-amber-50/30"></div>
       </div>
       
-      <div className="max-w-4xl mx-auto px-4 py-8 relative z-10">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 relative z-10">
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex justify-between items-center mb-6">
-            <div></div>
-            <div className="text-center">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-rose-600 via-orange-600 to-amber-600 bg-clip-text text-transparent mb-2">
-                Dance Event Registration
-              </h1>
-              <div className="w-24 h-1 bg-gradient-to-r from-rose-500 to-orange-500 mx-auto rounded-full"></div>
-            </div>
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="relative">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-rose-600 via-orange-600 to-amber-600 bg-clip-text text-transparent mb-2 font-heading leading-tight">
+              Dance Event Registration
+            </h1>
+            <div className="w-16 sm:w-24 h-1 bg-gradient-to-r from-rose-500 to-orange-500 mx-auto rounded-full mb-4"></div>
             <button
               onClick={handleAdminClick}
-              className="px-4 py-2 text-sm bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-full hover:from-slate-700 hover:to-slate-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+              className="absolute top-0 right-0 px-3 sm:px-4 py-2 text-xs sm:text-sm bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-full hover:from-slate-700 hover:to-slate-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
             >
               Admin
             </button>
           </div>
-          <p className="text-slate-700 text-lg font-medium">
+          <p className="text-slate-700 text-sm sm:text-lg font-medium">
             Register for the quarterly dance event on {new Date(eventConfig.eventDate).toLocaleDateString()}
           </p>
         </div>
 
         {/* Progress Indicator */}
-        <div className="mb-8">
-          <div className="flex items-center justify-center space-x-6">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center justify-center space-x-2 sm:space-x-6 overflow-x-auto pb-2">
             {['type', 'form', 'slots', 'payment', 'upload'].map((step, index) => {
               const stepNames = ['Choose Type', 'Fill Form', 'Select Slots', 'Payment', 'Upload'];
               const isActive = currentStep === step;
               const isCompleted = ['type', 'form', 'slots', 'payment', 'upload'].indexOf(currentStep) > index;
               
               return (
-                <div key={step} className="flex items-center">
+                <div key={step} className="flex items-center flex-shrink-0">
                   <div className={`
-                    w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 transform hover:scale-110
+                    w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-all duration-500 transform hover:scale-110
                     ${isActive ? 'bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-lg scale-110' : 
                       isCompleted ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg' : 
                       'bg-white/80 text-slate-400 border-2 border-slate-200 shadow-md'}
@@ -481,7 +495,7 @@ const App: React.FC = () => {
                   </div>
                   {index < 4 && (
                     <div className={`
-                      w-16 h-1 mx-3 rounded-full transition-all duration-500
+                      w-8 sm:w-16 h-1 mx-2 sm:mx-3 rounded-full transition-all duration-500
                       ${isCompleted ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-slate-200'}
                     `} />
                   )}
@@ -492,23 +506,23 @@ const App: React.FC = () => {
         </div>
 
         {/* Main Content */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/60">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8 border border-white/60 animate-fade-in">
           {error && (
-            <div className="mb-6 bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-4">
+            <div className="mb-4 sm:mb-6 bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-3 sm:p-4 animate-slide-up">
               <div className="flex items-center space-x-2">
-                <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                <div className="w-4 h-4 sm:w-5 sm:h-5 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-white text-xs">!</span>
                 </div>
-                <p className="text-sm text-red-700 font-medium">{error}</p>
+                <p className="text-xs sm:text-sm text-red-700 font-medium">{error}</p>
               </div>
             </div>
           )}
 
           {loading && (
-            <div className="flex justify-center items-center p-12">
+            <div className="flex justify-center items-center p-8 sm:p-12">
               <div className="relative">
-                <div className="w-12 h-12 border-4 border-rose-200 border-t-rose-500 rounded-full animate-spin"></div>
-                <div className="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-orange-500 rounded-full animate-spin animation-delay-150"></div>
+                <div className="w-8 h-8 sm:w-12 sm:h-12 border-4 border-rose-200 border-t-rose-500 rounded-full animate-spin"></div>
+                <div className="absolute inset-0 w-8 h-8 sm:w-12 sm:h-12 border-4 border-transparent border-t-orange-500 rounded-full animate-spin animation-delay-150"></div>
               </div>
             </div>
           )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { exportBookingsToCSV, downloadCSV, getAllFlatBookings, FlatBooking, deleteBooking, updateBooking, addBooking } from '../services/firebaseService';
+import { exportBookingsToCSV, downloadCSV, getAllFlatBookings, FlatBooking, deleteBooking, updateBooking, addBooking, getAvailableTimeSlots } from '../services/firebaseService';
 import { getEventDate } from '../utils/timeUtils';
+import { eventConfig } from '../config/eventConfig';
 
 const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -8,6 +9,8 @@ const AdminPanel: React.FC = () => {
   const [editingBooking, setEditingBooking] = useState<FlatBooking | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newBooking, setNewBooking] = useState<Partial<FlatBooking>>({});
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
+  const [editAvailableTimeSlots, setEditAvailableTimeSlots] = useState<string[]>([]);
 
   // Load bookings on component mount
   useEffect(() => {
@@ -70,6 +73,32 @@ const AdminPanel: React.FC = () => {
     }
   };
 
+  const loadAvailableTimeSlots = async (date: string) => {
+    try {
+      console.log('Loading available time slots for date:', date);
+      const slots = await getAvailableTimeSlots(date);
+      console.log('Available slots:', slots);
+      setAvailableTimeSlots(slots);
+    } catch (error) {
+      console.error('Failed to load available time slots:', error);
+      setAvailableTimeSlots([]);
+    }
+  };
+
+  const loadEditAvailableTimeSlots = async (date: string, currentTimeSlot: string) => {
+    try {
+      const slots = await getAvailableTimeSlots(date);
+      // Include the current time slot in the options for editing
+      if (!slots.includes(currentTimeSlot)) {
+        slots.push(currentTimeSlot);
+      }
+      setEditAvailableTimeSlots(slots.sort());
+    } catch (error) {
+      console.error('Failed to load available time slots for editing:', error);
+      setEditAvailableTimeSlots([currentTimeSlot]);
+    }
+  };
+
   const handleAdd = async () => {
     try {
       await addBooking(newBooking as FlatBooking);
@@ -99,7 +128,13 @@ const AdminPanel: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-800">Admin Panel - Booking Management</h2>
           <div className="flex space-x-3">
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={async () => {
+                setShowAddModal(true);
+                // Set default date to event date
+                const eventDate = eventConfig.eventDate;
+                setNewBooking({...newBooking, date: eventDate});
+                await loadAvailableTimeSlots(eventDate);
+              }}
               className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
             >
               Add Booking
@@ -183,7 +218,10 @@ const AdminPanel: React.FC = () => {
                     <td className="px-4 py-2 text-sm border-b border-slate-200">
                       <div className="flex space-x-1">
                         <button
-                          onClick={() => setEditingBooking(booking)}
+                          onClick={async () => {
+                            setEditingBooking(booking);
+                            await loadEditAvailableTimeSlots(booking.date, booking.timeSlot);
+                          }}
                           className="px-2 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs rounded hover:from-blue-600 hover:to-indigo-600 transition-all duration-300 shadow-sm"
                         >
                           Edit
@@ -278,18 +316,28 @@ const AdminPanel: React.FC = () => {
                   <input
                     type="date"
                     value={editingBooking.date}
-                    onChange={(e) => setEditingBooking({...editingBooking, date: e.target.value})}
+                    onChange={async (e) => {
+                      const newDate = e.target.value;
+                      setEditingBooking({...editingBooking, date: newDate});
+                      await loadEditAvailableTimeSlots(newDate, editingBooking.timeSlot);
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Time Slot</label>
-                  <input
-                    type="text"
+                  <select
                     value={editingBooking.timeSlot}
                     onChange={(e) => setEditingBooking({...editingBooking, timeSlot: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
+                  >
+                    <option value="">Select a time slot</option>
+                    {editAvailableTimeSlots.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Performance Type</label>
@@ -355,11 +403,11 @@ const AdminPanel: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Total Amount</label>
+                  <label className="block text-sm font-medium text-gray-700">Amount Per Slot</label>
                   <input
                     type="number"
-                    value={editingBooking.totalAmount}
-                    onChange={(e) => setEditingBooking({...editingBooking, totalAmount: parseInt(e.target.value)})}
+                    value={editingBooking.amountPerSlot}
+                    onChange={(e) => setEditingBooking({...editingBooking, amountPerSlot: parseInt(e.target.value)})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   />
                 </div>
@@ -402,18 +450,28 @@ const AdminPanel: React.FC = () => {
                   <input
                     type="date"
                     value={newBooking.date || ''}
-                    onChange={(e) => setNewBooking({...newBooking, date: e.target.value})}
+                    onChange={async (e) => {
+                      const newDate = e.target.value;
+                      setNewBooking({...newBooking, date: newDate, timeSlot: ''}); // Clear time slot when date changes
+                      await loadAvailableTimeSlots(newDate);
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Time Slot</label>
-                  <input
-                    type="text"
+                  <select
                     value={newBooking.timeSlot || ''}
                     onChange={(e) => setNewBooking({...newBooking, timeSlot: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
+                  >
+                    <option value="">Select a time slot</option>
+                    {availableTimeSlots.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Performance Type</label>
@@ -479,11 +537,11 @@ const AdminPanel: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Total Amount</label>
+                  <label className="block text-sm font-medium text-gray-700">Amount Per Slot</label>
                   <input
                     type="number"
-                    value={newBooking.totalAmount || ''}
-                    onChange={(e) => setNewBooking({...newBooking, totalAmount: parseInt(e.target.value)})}
+                    value={newBooking.amountPerSlot || ''}
+                    onChange={(e) => setNewBooking({...newBooking, amountPerSlot: parseInt(e.target.value)})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   />
                 </div>
