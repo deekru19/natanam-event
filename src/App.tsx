@@ -1,5 +1,5 @@
-import React, { useState, lazy, Suspense } from 'react';
-import { createBooking, uploadScreenshot, updateSlotStatus, validateSlotsAvailable } from './services/firebaseService';
+import React, { useState, lazy } from 'react';
+import { createBooking, updateSlotStatus, validateSlotsAvailable } from './services/firebaseService';
 import { getEventDate } from './utils/timeUtils';
 import { eventConfig } from './config/eventConfig';
 import LazyWrapper from './components/LazyWrapper';
@@ -9,18 +9,21 @@ const TimeSlotSelector = lazy(() => import('./components/TimeSlotSelector'));
 const PerformanceTypeSelector = lazy(() => import('./components/PerformanceTypeSelector'));
 const RegistrationForm = lazy(() => import('./components/RegistrationForm'));
 const PaymentSummary = lazy(() => import('./components/PaymentSummary'));
-const ScreenshotUpload = lazy(() => import('./components/ScreenshotUpload'));
+const RazorpayPayment = lazy(() => import('./components/RazorpayPayment'));
+const PaymentSuccess = lazy(() => import('./components/PaymentSuccess'));
+const PaymentFailure = lazy(() => import('./components/PaymentFailure'));
+const PaymentStatusChecker = lazy(() => import('./components/PaymentStatusChecker'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const FirebaseTest = lazy(() => import('./components/FirebaseTest'));
 
-type Step = 'type' | 'form' | 'slots' | 'payment' | 'upload' | 'success';
+type Step = 'type' | 'form' | 'slots' | 'payment' | 'razorpay' | 'checking' | 'success' | 'failure';
 
 const App: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>('type');
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [performanceType, setPerformanceType] = useState<string>('');
   const [participantDetails, setParticipantDetails] = useState<Record<string, any>>({});
-  const [screenshotUrl, setScreenshotUrl] = useState<string>('');
+  const [paymentData, setPaymentData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
@@ -52,99 +55,60 @@ const App: React.FC = () => {
   };
 
   const handlePaymentProceed = () => {
-    setCurrentStep('upload');
+    setCurrentStep('razorpay');
   };
 
-  const handleScreenshotUpload = async (file: File) => {
-    try {
-      setLoading(true);
-      const eventDate = getEventDate();
-      const url = await uploadScreenshot(file, eventDate, selectedSlots[0]);
-      setScreenshotUrl(url);
-      await handleBookingSubmission();
-    } catch (err) {
-      setError('Failed to upload screenshot. Please try again.');
-      setLoading(false);
-    }
-  };
-
-  const handleScreenshotSkip = async () => {
-    await handleBookingSubmission();
-  };
-
-  const handleBookingSubmission = async () => {
+  const handlePaymentSuccess = async (payment: any) => {
     try {
       setLoading(true);
       setError('');
-
-      // Validate slots are still available
-      const eventDate = getEventDate();
-      console.log('🔍 Validating slots for date:', eventDate);
-      console.log('🔍 Selected slots:', selectedSlots);
+      setPaymentData(payment);
       
-      const slotsAvailable = await validateSlotsAvailable(eventDate, selectedSlots);
-      
-      if (!slotsAvailable) {
-        setError('Some selected slots are no longer available. Please go back and select different slots.');
-        setCurrentStep('slots');
-        setLoading(false);
-        return;
-      }
-
-      console.log('✅ Slots validation passed');
-
-      // Create booking
-      const booking = {
-        date: eventDate,
+      // Create booking immediately with pending status
+      console.log('🚀 Payment success callback:', payment);
+      const bookingPayload = {
+        date: getEventDate(),
         timeSlots: selectedSlots,
         performanceType,
         participantDetails,
-        screenshotUrl
+        paymentData: { ...payment, status: 'pending', webhookProcessed: false }
       };
-
-      console.log('📝 Creating booking with data:', booking);
-      console.log('📝 Performance type:', performanceType);
-      console.log('📝 Participant details:', participantDetails);
-      console.log('📝 Participant details keys:', Object.keys(participantDetails));
-      console.log('📝 Participant details values:', Object.values(participantDetails));
-
-      const bookingId = await createBooking(booking);
-      console.log('✅ Booking created successfully with ID:', bookingId);
-
+      console.log('📝 Creating booking with data:', bookingPayload);
+      const bookingId = await createBooking(bookingPayload);
+      console.log('✅ Booking created with ID:', bookingId);
+      
       // Update slot statuses
-      console.log('🔄 Updating slot statuses...');
-      for (const slot of selectedSlots) {
-        console.log('🔄 Updating slot:', slot);
-        await updateSlotStatus(eventDate, slot, 'booked');
-      }
-      console.log('✅ All slot statuses updated');
-
-      setCurrentStep('success');
-    } catch (err: any) {
-      console.error('❌ Booking creation failed:', err);
-      console.error('❌ Error details:', {
-        message: err.message,
-        code: err.code,
-        stack: err.stack
-      });
+      await Promise.all(
+        selectedSlots.map(slot => updateSlotStatus(getEventDate(), slot, 'booked'))
+      );
+      console.log('✅ Slots booked');
       
-      // Provide more specific error messages
-      let errorMessage = 'Failed to create booking. Please try again.';
-      
-      if (err.code === 'permission-denied') {
-        errorMessage = 'Permission denied. Please check Firebase security rules.';
-      } else if (err.code === 'unavailable') {
-        errorMessage = 'Firebase service unavailable. Please check your internet connection.';
-      } else if (err.code === 'invalid-argument') {
-        errorMessage = 'Invalid booking data. Please check all required fields.';
-      } else if (err.message) {
-        errorMessage = `Booking failed: ${err.message}`;
-      }
-      
-      setError(errorMessage);
-    } finally {
+      // Reset loading and move to checking status while waiting for webhook
+      setLoading(false);
+      setCurrentStep('checking');
+    } catch (err) {
+      console.error('Payment success handling failed:', err);
+      setError('Failed to process payment. Please contact support.');
+      setCurrentStep('failure');
       setLoading(false);
     }
+  };
+
+  const handlePaymentFailure = (errorData: any) => {
+    console.error('Payment failed:', errorData);
+    setError(errorData.description || errorData.reason || 'Payment failed. Please try again.');
+    setCurrentStep('failure');
+  };
+
+  const handleWebhookSuccess = () => {
+    setLoading(false);
+    setCurrentStep('success');
+  };
+
+  const handleWebhookFailure = (reason?: string) => {
+    setLoading(false);
+    setError(reason || 'Payment verification failed. Please contact support.');
+    setCurrentStep('failure');
   };
 
   const handleBack = () => {
@@ -158,8 +122,19 @@ const App: React.FC = () => {
       case 'payment':
         setCurrentStep('slots');
         break;
-      case 'upload':
+      case 'razorpay':
         setCurrentStep('payment');
+        break;
+      case 'checking':
+        setCurrentStep('razorpay');
+        break;
+      case 'failure':
+        // Allow going back from failure to retry payment
+        if (paymentData) {
+          setCurrentStep('razorpay');
+        } else {
+          setCurrentStep('payment');
+        }
         break;
     }
   };
@@ -168,7 +143,7 @@ const App: React.FC = () => {
     setSelectedSlots([]);
     setPerformanceType('');
     setParticipantDetails({});
-    setScreenshotUrl('');
+    setPaymentData(null);
     setError('');
     setCurrentStep('type');
   };
@@ -238,46 +213,57 @@ const App: React.FC = () => {
           </LazyWrapper>
         );
       
-      case 'upload':
+      case 'razorpay':
         return (
           <LazyWrapper>
-            <ScreenshotUpload
-              onUpload={handleScreenshotUpload}
-              onSkip={handleScreenshotSkip}
+            <RazorpayPayment
+              selectedSlots={selectedSlots}
+              performanceType={performanceType}
+              participantDetails={participantDetails}
+              onPaymentSuccess={handlePaymentSuccess}
+              onPaymentFailure={handlePaymentFailure}
               onBack={handleBack}
+            />
+          </LazyWrapper>
+        );
+      
+      case 'checking':
+        return (
+          <LazyWrapper>
+            <PaymentStatusChecker
+              paymentData={paymentData}
+              selectedSlots={selectedSlots}
+              performanceType={performanceType}
+              participantDetails={participantDetails}
+              onStatusConfirmed={handleWebhookSuccess}
+              onStatusFailed={handleWebhookFailure}
             />
           </LazyWrapper>
         );
       
       case 'success':
         return (
-          <div className="text-center space-y-6">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">Booking Confirmed!</h3>
-              <p className="text-gray-600">
-                Your dance performance has been successfully booked. You will receive a confirmation email shortly.
-              </p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-4 text-left">
-              <h4 className="font-medium text-gray-800 mb-2">Booking Details</h4>
-              <div className="space-y-1 text-sm text-gray-600">
-                <p><span className="font-medium">Date:</span> {new Date(eventConfig.eventDate).toLocaleDateString()}</p>
-                <p><span className="font-medium">Time Slots:</span> {selectedSlots.join(', ')}</p>
-                <p><span className="font-medium">Performance Type:</span> {eventConfig.performanceTypes.find(t => t.id === performanceType)?.name}</p>
-              </div>
-            </div>
-            <button
-              onClick={resetForm}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Book Another Performance
-            </button>
-          </div>
+          <LazyWrapper>
+            <PaymentSuccess
+              selectedSlots={selectedSlots}
+              performanceType={performanceType}
+              participantDetails={participantDetails}
+              paymentData={paymentData}
+              onNewBooking={resetForm}
+            />
+          </LazyWrapper>
+        );
+      
+      case 'failure':
+        return (
+          <LazyWrapper>
+            <PaymentFailure
+              error={error}
+              paymentData={paymentData}
+              onRetry={() => setCurrentStep('razorpay')}
+              onBack={handleBack}
+            />
+          </LazyWrapper>
         );
       
       default:
@@ -475,13 +461,14 @@ const App: React.FC = () => {
           </p>
         </div>
 
-        {/* Progress Indicator */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex items-center justify-center space-x-2 sm:space-x-6 overflow-x-auto pb-2">
-            {['type', 'form', 'slots', 'payment', 'upload'].map((step, index) => {
-              const stepNames = ['Choose Type', 'Fill Form', 'Select Slots', 'Payment', 'Upload'];
-              const isActive = currentStep === step;
-              const isCompleted = ['type', 'form', 'slots', 'payment', 'upload'].indexOf(currentStep) > index;
+        {/* Progress Indicator - Hide on success/failure/checking pages */}
+        {!['success', 'failure', 'checking'].includes(currentStep) && (
+          <div className="mb-6 sm:mb-8">
+            <div className="flex items-center justify-center space-x-2 sm:space-x-6 overflow-x-auto pb-2">
+              {['type', 'form', 'slots', 'payment', 'razorpay'].map((step, index) => {
+                const stepNames = ['Choose Type', 'Fill Form', 'Select Slots', 'Payment', 'Pay Now'];
+                const isActive = currentStep === step;
+                const isCompleted = ['type', 'form', 'slots', 'payment', 'razorpay'].indexOf(currentStep) > index;
               
               return (
                 <div key={step} className="flex items-center flex-shrink-0">
@@ -504,6 +491,7 @@ const App: React.FC = () => {
             })}
           </div>
         </div>
+        )}
 
         {/* Main Content */}
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8 border border-white/60 animate-fade-in">

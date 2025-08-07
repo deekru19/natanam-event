@@ -60,6 +60,17 @@ export interface Booking {
   performanceType: string;
   participantDetails: Record<string, any>;
   screenshotUrl?: string;
+  paymentData?: {
+    paymentId: string;
+    orderId?: string;
+    signature?: string;
+    amount: number;
+    currency: string;
+    status: "success" | "failed" | "pending";
+    webhookProcessed?: boolean;
+    errorReason?: string;
+  };
+  bookingStatus?: "pending" | "confirmed" | "cancelled";
   timestamp?: any;
 }
 
@@ -138,12 +149,23 @@ export const createBooking = async (booking: Booking): Promise<string> => {
     const bookingsCollection = collection(db, "bookings");
     const flatBookingsCollection = collection(db, "flatBookings");
 
-    const bookingData = {
+    // Prepare booking data, filtering out undefined paymentData fields
+    const bookingDataRaw = {
       ...booking,
+      bookingStatus: booking.paymentData ? "pending" : "confirmed",
       timestamp: serverTimestamp(),
     };
-
-    console.log("📝 Adding to bookings collection...");
+    // Clean nested paymentData
+    const paymentDataClean = bookingDataRaw.paymentData
+      ? Object.fromEntries(
+          Object.entries(bookingDataRaw.paymentData).filter(([_, value]) => value !== undefined)
+        )
+      : undefined;
+    const bookingData = {
+      ...bookingDataRaw,
+      paymentData: paymentDataClean,
+    };
+    console.log("📝 Adding to bookings collection...", bookingData);
     const docRef = await addDoc(bookingsCollection, bookingData);
     const bookingId = docRef.id;
     console.log("✅ Main booking created with ID:", bookingId);
@@ -508,4 +530,89 @@ export const getAvailableTimeSlots = async (date: string): Promise<string[]> => 
 
   console.log(`Available slots for ${date}:`, availableSlots);
   return availableSlots.sort();
+};
+
+// Check payment and booking status
+export const checkPaymentStatus = async (
+  paymentId: string
+): Promise<{
+  booking?: Booking;
+  status: "pending" | "confirmed" | "cancelled" | "not_found";
+  webhookProcessed: boolean;
+}> => {
+  try {
+    const bookingsRef = collection(db, "bookings");
+    const q = query(bookingsRef, orderBy("timestamp", "desc"));
+    const querySnapshot = await getDocs(q);
+
+    let foundBooking: Booking | undefined;
+
+    querySnapshot.forEach((doc) => {
+      const booking = { id: doc.id, ...doc.data() } as Booking;
+      if (booking.paymentData?.paymentId === paymentId) {
+        foundBooking = booking;
+      }
+    });
+
+    if (!foundBooking) {
+      return {
+        status: "not_found",
+        webhookProcessed: false,
+      };
+    }
+
+    const webhookProcessed = foundBooking.paymentData?.webhookProcessed || false;
+    let status: "pending" | "confirmed" | "cancelled" = "pending";
+
+    if (foundBooking.bookingStatus === "confirmed") {
+      status = "confirmed";
+    } else if (foundBooking.bookingStatus === "cancelled") {
+      status = "cancelled";
+    } else if (foundBooking.paymentData?.status === "success") {
+      status = "confirmed";
+    } else if (foundBooking.paymentData?.status === "failed") {
+      status = "cancelled";
+    }
+
+    return {
+      booking: foundBooking,
+      status,
+      webhookProcessed,
+    };
+  } catch (error) {
+    console.error("Error checking payment status:", error);
+    return {
+      status: "not_found",
+      webhookProcessed: false,
+    };
+  }
+};
+
+// Listen to booking status changes
+export const listenToBookingStatus = (
+  paymentId: string,
+  callback: (status: "pending" | "confirmed" | "cancelled", booking?: Booking) => void
+) => {
+  const bookingsRef = collection(db, "bookings");
+
+  return onSnapshot(bookingsRef, (snapshot) => {
+    snapshot.forEach((doc) => {
+      const booking = { id: doc.id, ...doc.data() } as Booking;
+      if (booking.paymentData?.paymentId === paymentId) {
+        let status: "pending" | "confirmed" | "cancelled" = "pending";
+
+        if (booking.bookingStatus === "confirmed") {
+          status = "confirmed";
+        } else if (booking.bookingStatus === "cancelled") {
+          status = "cancelled";
+        } else if (booking.paymentData?.status === "success") {
+          status = "confirmed";
+        } else if (booking.paymentData?.status === "failed") {
+          status = "cancelled";
+        }
+
+        callback(status, booking);
+      }
+    });
+  });
 };
