@@ -1,6 +1,8 @@
 const functions = require("firebase-functions");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
 const cryptoLib = require("crypto");
+const Razorpay = require("razorpay");
 
 admin.initializeApp();
 
@@ -131,20 +133,22 @@ exports.razorpayWebhook = functions.https.onRequest(async (req, res) => {
           // Release the booked slots
           await releaseBookedSlots(bookingData);
 
-          // Update booking with payment failure
-          await bookingDoc.ref.update({
-            "paymentData.status": "failed",
-            "paymentData.failedAt": admin.firestore.FieldValue.serverTimestamp(),
-            "paymentData.webhookProcessed": true,
-            "paymentData.errorReason": payment.error_reason || "Payment failed",
-            bookingStatus: "cancelled",
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
+          // Delete related flat bookings
+          const flatBookingsRef = admin.firestore().collection("flatBookings");
+          const flatQuery = await flatBookingsRef.where("bookingId", "==", bookingDoc.id).get();
+          const batch = admin.firestore().batch();
+          flatQuery.forEach((docSnap) => batch.delete(docSnap.ref));
+          // Delete the main booking document
+          batch.delete(bookingDoc.ref);
+          await batch.commit();
 
-          console.log("Booking cancelled for failed payment:", payment.id);
+          console.log(
+            "Pending booking and related flat bookings deleted for failed payment:",
+            payment.id
+          );
 
           return res.status(200).json({
-            message: "Payment failure recorded and booking cancelled",
+            message: "Payment failed. Booking and slots cleaned up.",
             payment_id: payment.id,
             booking_id: bookingDoc.id,
           });
@@ -169,6 +173,50 @@ exports.razorpayWebhook = functions.https.onRequest(async (req, res) => {
   }
 });
 
+// Create Razorpay order with auto-capture
+exports.createRazorpayOrder = functions.https.onRequest(async (req, res) => {
+  try {
+    // CORS
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") {
+      return res.status(204).send("");
+    }
+
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method Not Allowed" });
+    }
+
+    const keyId = functions.config().razorpay?.key_id || process.env.RAZORPAY_KEY_ID;
+    const keySecret = functions.config().razorpay?.key_secret || process.env.RAZORPAY_KEY_SECRET;
+    if (!keyId || !keySecret) {
+      console.error("Missing Razorpay credentials");
+      return res.status(500).json({ error: "Server not configured for Razorpay" });
+    }
+
+    const { amount, currency = "INR", receipt, notes } = req.body || {};
+    if (!amount || typeof amount !== "number") {
+      return res.status(400).json({ error: "Invalid amount" });
+    }
+
+    const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+
+    const order = await razorpay.orders.create({
+      amount: Math.round(amount),
+      currency,
+      receipt: receipt || `receipt_${Date.now()}`,
+      payment_capture: 1,
+      notes: notes || {},
+    });
+
+    return res.status(200).json({ order });
+  } catch (error) {
+    console.error("Error creating Razorpay order:", error);
+    return res.status(500).json({ error: "Failed to create order" });
+  }
+});
+
 // Simple endpoint to check webhook status
 exports.webhookStatus = functions.https.onRequest((req, res) => {
   res.status(200).json({
@@ -176,3 +224,59 @@ exports.webhookStatus = functions.https.onRequest((req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Scheduled cleanup for stuck pending bookings (webhook missed / user abandoned) - Gen 2
+exports.cleanupExpiredBookings = onSchedule(
+  {
+    schedule: "every 5 minutes",
+    timeZone: "Etc/UTC",
+    region: "us-central1",
+  },
+  async () => {
+    try {
+      const now = admin.firestore.Timestamp.now();
+      const thresholdMinutes = 5; // consider pending beyond 5 minutes as expired
+      const cutoff = admin.firestore.Timestamp.fromMillis(
+        now.toMillis() - thresholdMinutes * 60 * 1000
+      );
+
+      const bookingsRef = admin.firestore().collection("bookings");
+      const pendingSnapshot = await bookingsRef.where("bookingStatus", "==", "pending").get();
+
+      if (pendingSnapshot.empty) {
+        return null;
+      }
+
+      for (const docSnap of pendingSnapshot.docs) {
+        const booking = docSnap.data();
+        const createdAt = booking.timestamp;
+
+        if (!createdAt || createdAt.toMillis() > cutoff.toMillis()) {
+          continue;
+        }
+
+        if (booking.bookingStatus === "confirmed" || booking.paymentData?.status === "success") {
+          continue;
+        }
+
+        await releaseBookedSlots(booking);
+
+        const batch = admin.firestore().batch();
+        const flatRef = admin.firestore().collection("flatBookings");
+        const flats = await flatRef.where("bookingId", "==", docSnap.id).get();
+        flats.forEach((f) => batch.delete(f.ref));
+        batch.delete(docSnap.ref);
+        await batch.commit();
+
+        console.log(
+          `Cleaned up expired pending booking ${docSnap.id} (older than ${thresholdMinutes} min)`
+        );
+      }
+
+      return null;
+    } catch (error) {
+      console.error("cleanupExpiredBookings error:", error);
+      return null;
+    }
+  }
+);

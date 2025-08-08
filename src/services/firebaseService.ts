@@ -11,6 +11,7 @@ import {
   getDocs,
   query,
   orderBy,
+  where,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebase/config";
@@ -51,6 +52,11 @@ export interface FlatBooking {
   timestamp?: any;
   totalSlots: number;
   amountPerSlot: number;
+  // Payment details
+  paymentId?: string;
+  paymentStatus?: string;
+  paymentAmount?: number;
+  paymentCurrency?: string;
 }
 
 export interface Booking {
@@ -141,11 +147,6 @@ export const subscribeToSlots = (
 // Bookings Management - Flat Structure
 export const createBooking = async (booking: Booking): Promise<string> => {
   try {
-    console.log("🚀 Starting booking creation...");
-    console.log("📊 Booking data:", booking);
-    console.log("📊 Participant details:", booking.participantDetails);
-    console.log("📊 Participant details keys:", Object.keys(booking.participantDetails));
-
     const bookingsCollection = collection(db, "bookings");
     const flatBookingsCollection = collection(db, "flatBookings");
 
@@ -165,10 +166,9 @@ export const createBooking = async (booking: Booking): Promise<string> => {
       ...bookingDataRaw,
       paymentData: paymentDataClean,
     };
-    console.log("📝 Adding to bookings collection...", bookingData);
     const docRef = await addDoc(bookingsCollection, bookingData);
     const bookingId = docRef.id;
-    console.log("✅ Main booking created with ID:", bookingId);
+    // Main booking created
 
     // Create flat booking records for each time slot
     const performanceType = eventConfig.performanceTypes.find(
@@ -229,8 +229,6 @@ export const createBooking = async (booking: Booking): Promise<string> => {
     // Create flat booking records
     console.log("📋 Creating flat booking records...");
     for (const timeSlot of booking.timeSlots) {
-      console.log("📋 Creating flat booking for slot:", timeSlot);
-
       const flatBooking: FlatBooking = {
         bookingId,
         date: booking.date,
@@ -260,6 +258,11 @@ export const createBooking = async (booking: Booking): Promise<string> => {
         representativePhone: booking.participantDetails.representativePhone,
         danceStyle: booking.participantDetails.performanceCategory || "",
         screenshotUrl: booking.screenshotUrl,
+        // Payment details
+        paymentId: booking.paymentData?.paymentId,
+        paymentStatus: booking.paymentData?.status,
+        paymentAmount: booking.paymentData?.amount,
+        paymentCurrency: booking.paymentData?.currency,
         timestamp: serverTimestamp(),
         totalSlots: booking.timeSlots.length,
         amountPerSlot,
@@ -272,7 +275,7 @@ export const createBooking = async (booking: Booking): Promise<string> => {
 
       console.log("📋 Flat booking data:", cleanFlatBooking);
       await addDoc(flatBookingsCollection, cleanFlatBooking);
-      console.log("✅ Flat booking created for slot:", timeSlot);
+      // Flat booking created
     }
 
     console.log("🎉 All bookings created successfully!");
@@ -615,4 +618,39 @@ export const listenToBookingStatus = (
       }
     });
   });
+};
+
+// Cleanup a failed or timed-out booking by paymentId: frees slots, deletes flat bookings and booking
+export const cleanupFailedBooking = async (paymentId: string): Promise<void> => {
+  try {
+    // Find the booking by paymentId
+    const bookingsRef = collection(db, "bookings");
+    const bookingQuery = query(bookingsRef, where("paymentData.paymentId", "==", paymentId));
+    const bookingSnapshot = await getDocs(bookingQuery);
+
+    if (bookingSnapshot.empty) {
+      return; // Nothing to cleanup
+    }
+
+    const bookingDoc = bookingSnapshot.docs[0];
+    const booking = { id: bookingDoc.id, ...bookingDoc.data() } as Booking;
+
+    // Free all reserved slots for this booking
+    if (booking?.date && Array.isArray(booking?.timeSlots)) {
+      await Promise.all(
+        booking.timeSlots.map((slot) => updateSlotStatus(booking.date, slot, "available"))
+      );
+    }
+
+    // Delete associated flat bookings
+    const flatBookingsRef = collection(db, "flatBookings");
+    const flatQuery = query(flatBookingsRef, where("bookingId", "==", bookingDoc.id));
+    const flatSnapshot = await getDocs(flatQuery);
+    await Promise.all(flatSnapshot.docs.map((docSnap) => deleteDoc(docSnap.ref)));
+
+    // Delete the main booking document
+    await deleteDoc(bookingDoc.ref);
+  } catch (error) {
+    console.error("Error during cleanupFailedBooking:", error);
+  }
 };

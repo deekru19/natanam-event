@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { checkPaymentStatus, listenToBookingStatus } from '../services/firebaseService';
+import { checkPaymentStatus, listenToBookingStatus, cleanupFailedBooking } from '../services/firebaseService';
 import { eventConfig } from '../config/eventConfig';
 
 interface PaymentStatusCheckerProps {
@@ -35,7 +35,10 @@ const PaymentStatusChecker: React.FC<PaymentStatusCheckerProps> = ({
         if (prev <= 1) {
           clearInterval(countdownInterval);
           setChecking(false);
-          onStatusFailed('Webhook timeout - payment status unclear');
+          // On timeout, cleanup any pending booking and free slots
+          cleanupFailedBooking(paymentData.paymentId).finally(() => {
+            onStatusFailed('Webhook timeout - payment status unclear');
+          });
           return 0;
         }
         return prev - 1;
@@ -82,6 +85,14 @@ const PaymentStatusChecker: React.FC<PaymentStatusCheckerProps> = ({
           setChecking(false);
           const reason = result.booking?.paymentData?.errorReason || 'Payment was declined or failed';
           onStatusFailed(reason);
+        } else if (result.status === 'not_found') {
+          // If no booking is located for this payment, treat as failure and cleanup defensively
+          clearInterval(countdownInterval);
+          clearInterval(statusCheckInterval);
+          setStatus('failed');
+          setChecking(false);
+          await cleanupFailedBooking(paymentData.paymentId);
+          onStatusFailed('Payment could not be verified. Please retry.');
         }
       } catch (error) {
         console.error('Error checking payment status:', error);

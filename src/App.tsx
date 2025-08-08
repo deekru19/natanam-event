@@ -38,8 +38,6 @@ const App: React.FC = () => {
   };
 
   const handleFormSubmit = (formData: Record<string, any>) => {
-    console.log('📝 Form data received:', formData);
-    console.log('📝 Form data keys:', Object.keys(formData));
     setParticipantDetails(formData);
     setCurrentStep('slots');
   };

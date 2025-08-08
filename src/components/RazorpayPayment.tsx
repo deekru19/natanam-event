@@ -101,14 +101,41 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
       }
 
       const { phone, email } = getContactInfo();
+      
+      // Try to create an order on backend with auto-capture; fallback to direct payment if it fails
+      let orderId: string | undefined;
+      try {
+        const orderResp = await fetch('/createRazorpayOrder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: totalAmount * 100,
+            currency: 'INR',
+            notes: {
+              performance_type: performanceType,
+              time_slots: selectedSlots.join(', '),
+              participant_count: participantCount.toString(),
+            },
+          }),
+        });
+        if (orderResp.ok) {
+          const data = await orderResp.json();
+          orderId = data?.order?.id;
+        } else {
+          console.warn('Order creation failed with status:', orderResp.status);
+        }
+      } catch (e) {
+        console.warn('Order creation failed, falling back to direct checkout:', e);
+      }
 
-      const options = {
+      const options: any = {
         key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_your_key_here', // Replace with your Razorpay key
         amount: totalAmount * 100, // Amount in paise
         currency: 'INR',
         name: 'Natanam Dance Event',
         description: `${selectedType.name} Performance Registration`,
         image: '/logo192.png', // Your logo
+        ...(orderId ? { order_id: orderId } : {}),
         handler: function (response: any) {
           console.log('Payment Success:', response);
           onPaymentSuccess({

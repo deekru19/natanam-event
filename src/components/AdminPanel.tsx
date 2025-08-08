@@ -210,6 +210,18 @@ const AdminPanel: React.FC = () => {
                     <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
                       Timestamp
                     </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
+                      Payment ID
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
+                      Status
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
+                      Paid Amount
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
+                      Currency
+                    </th>
                   </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -275,6 +287,19 @@ const AdminPanel: React.FC = () => {
                     </td>
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
                       {formatTimestamp(booking.timestamp)}
+                    </td>
+                    {/* Payment details columns */}
+                    <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
+                      {booking.paymentId || '-'}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
+                      {booking.paymentStatus || '-'}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
+                      {booking.paymentAmount != null ? `₹${booking.paymentAmount}` : '-'}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
+                      {booking.paymentCurrency || '-'}
                     </td>
                   </tr>
                 ))}
