@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { eventConfig } from '../config/eventConfig';
 
 interface PaymentSummaryProps {
@@ -6,7 +6,8 @@ interface PaymentSummaryProps {
   performanceType: string;
   participantDetails: Record<string, any>;
   onBack: () => void;
-  onProceed: () => void;
+  onPaymentSuccess: (paymentData: any) => void;
+  onPaymentFailure: (errorData: any) => void;
 }
 
 const PaymentSummary: React.FC<PaymentSummaryProps> = ({
@@ -14,8 +15,13 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
   performanceType,
   participantDetails,
   onBack,
-  onProceed
+  onPaymentSuccess,
+  onPaymentFailure
 }) => {
+  // All hooks must be called at the top level, before any conditional returns
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  
   const selectedType = eventConfig.performanceTypes.find(type => type.id === performanceType);
   
   if (!selectedType) {
@@ -63,16 +69,164 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
     }
   };
 
+  // Payment functions
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const getParticipantName = () => {
+    switch (performanceType) {
+      case 'solo':
+        return participantDetails.fullName || 'N/A';
+      case 'duet':
+        return participantDetails.participant1Name || 'N/A';
+      case 'group':
+        const participantNames = participantDetails.participantNames || '';
+        if (participantNames.trim()) {
+          const participants = participantNames.split(/[,\n]/).filter((name: string) => name.trim());
+          return participants[0] || 'N/A';
+        }
+        return 'N/A';
+      default:
+        return 'N/A';
+    }
+  };
+
+  const getContactInfo = () => {
+    const phone = participantDetails.phoneNumber || participantDetails.participant1Phone || participantDetails.representativePhone || '';
+    const email = participantDetails.email || '';
+    return { phone, email };
+  };
+
+  const handlePayment = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      // Load Razorpay script
+      const isScriptLoaded = await loadRazorpayScript();
+      
+      if (!isScriptLoaded) {
+        throw new Error('Failed to load Razorpay. Please check your internet connection.');
+      }
+
+      const { phone, email } = getContactInfo();
+      
+      // Create order using direct Firebase Function URL
+      const projectId = process.env.REACT_APP_FIREBASE_PROJECT_ID;
+      if (!projectId) {
+        throw new Error('Firebase Project ID not configured. Please check environment variables.');
+      }
+      
+      const functionUrl = `https://us-central1-${projectId}.cloudfunctions.net/createRazorpayOrder`;
+      console.log('🌐 Creating order via Firebase Function:', functionUrl);
+      
+      const orderResp = await fetch(functionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: totalCost * 100,
+          currency: 'INR',
+          notes: {
+            performance_type: performanceType,
+            time_slots: selectedSlots.join(', '),
+            participant_count: participantCount.toString(),
+          },
+        }),
+      });
+      
+      if (!orderResp.ok) {
+        const errorText = await orderResp.text();
+        throw new Error(`Order creation failed: ${orderResp.status} - ${errorText}`);
+      }
+      
+      const data = await orderResp.json();
+      const orderId = data?.order?.id;
+      
+      if (!orderId) {
+        throw new Error('Order created but no order ID returned from backend');
+      }
+      
+      console.log('✅ Order created successfully:', orderId);
+
+      const options: any = {
+        key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_your_key_here',
+        amount: totalCost * 100,
+        currency: 'INR',
+        name: 'Natanam Dance Event',
+        description: `${selectedType.name} Performance Registration`,
+        image: '/logo192.png',
+        order_id: orderId,
+        handler: function (response: any) {
+          console.log('🎉 Payment Success:', response);
+          onPaymentSuccess({
+            paymentId: response.razorpay_payment_id,
+            orderId: response.razorpay_order_id,
+            signature: response.razorpay_signature,
+            amount: totalCost,
+            currency: 'INR'
+          });
+        },
+        prefill: {
+          name: getParticipantName(),
+          email: email,
+          contact: phone
+        },
+        notes: {
+          performance_type: performanceType,
+          time_slots: selectedSlots.join(', '),
+          participant_count: participantCount.toString()
+        },
+        theme: {
+          color: '#2563eb'
+        },
+        modal: {
+          ondismiss: function() {
+            setLoading(false);
+          }
+        }
+      };
+
+      const razorpay = new (window as any).Razorpay(options);
+      
+      razorpay.on('payment.failed', function (response: any) {
+        console.log('❌ Payment Failed:', response);
+        onPaymentFailure({
+          error: response.error,
+          reason: response.error.reason,
+          description: response.error.description
+        });
+      });
+
+      razorpay.open();
+      setLoading(false);
+      
+    } catch (err: any) {
+      console.error('💥 Payment initialization failed:', err);
+      setError(err.message || 'Failed to initialize payment. Please try again.');
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Consistent Header with Back Button */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800">Payment Summary</h3>
-        <button
-          onClick={onBack}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-        >
-          ← Back
-        </button>
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={onBack}
+            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+          >
+            ← Back
+          </button>
+          <h3 className="text-xl font-bold text-gray-800">Payment Summary</h3>
+        </div>
       </div>
 
       <div className="bg-gray-50 rounded-lg p-6 space-y-4">
@@ -137,18 +291,27 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
         </ul>
       </div>
 
-      <div className="flex justify-end space-x-3">
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
+
+      {/* Payment Button */}
+      <div className="flex justify-end">
         <button
-          onClick={onBack}
-          className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+          onClick={handlePayment}
+          disabled={loading}
+          className={`
+            px-8 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+            ${loading 
+              ? 'bg-gray-400 text-white cursor-not-allowed' 
+              : 'bg-green-600 text-white hover:bg-green-700'
+            }
+          `}
         >
-          Back
-        </button>
-        <button
-          onClick={onProceed}
-          className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-        >
-          Pay Now
+          {loading ? 'Processing...' : `Pay ₹${totalCost.toLocaleString()}`}
         </button>
       </div>
     </div>

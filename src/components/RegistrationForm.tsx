@@ -254,19 +254,20 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
-        <div>
+      {/* Consistent Header with Back Button */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={onBack}
+            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+          >
+            ← Back
+          </button>
           <h3 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-rose-600 to-orange-600 bg-clip-text text-transparent font-heading">
             {selectedType.name} Registration Form
           </h3>
-          <div className="w-12 sm:w-16 h-1 bg-gradient-to-r from-rose-500 to-orange-500 rounded-full mt-2"></div>
         </div>
-        <button
-          onClick={onBack}
-          className="px-3 sm:px-4 py-2 text-rose-600 hover:text-rose-800 text-sm font-medium bg-rose-50 hover:bg-rose-100 rounded-full transition-all duration-300 transform hover:scale-105 self-start sm:self-auto"
-        >
-          ← Back
-        </button>
+        <div className="w-12 sm:w-16 h-1 bg-gradient-to-r from-rose-500 to-orange-500 rounded-full"></div>
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
@@ -303,14 +304,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
           </div>
         </div>
         
-        <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 pt-4 sm:pt-6">
-          <button
-            type="button"
-            onClick={onBack}
-            className="px-4 sm:px-6 py-2 sm:py-3 text-slate-700 bg-slate-100 rounded-full hover:bg-slate-200 transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg text-sm sm:text-base"
-          >
-            Back
-          </button>
+        <div className="flex justify-end pt-4 sm:pt-6">
           <button
             type="submit"
             className="px-6 sm:px-8 py-2 sm:py-3 bg-gradient-to-r from-rose-600 to-orange-600 text-white rounded-full hover:from-rose-700 hover:to-orange-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl font-semibold text-sm sm:text-base"

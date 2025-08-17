@@ -145,11 +145,22 @@ const TimeSlotSelector: React.FC<TimeSlotSelectorProps> = ({ selectedSlots, onSl
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold text-gray-800 mb-2">Select Time Slots</h3>
-        <p className="text-sm text-gray-600">
-          Click on available slots to select them. You can select multiple continuous slots.
-        </p>
+      {/* Consistent Header with Back Button */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={onBack}
+            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+          >
+            ← Back
+          </button>
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">Select Time Slots</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Click on available slots to select them. You can select multiple continuous slots.
+            </p>
+          </div>
+        </div>
       </div>
       
       {/* Time Sections */}
@@ -191,15 +202,8 @@ const TimeSlotSelector: React.FC<TimeSlotSelectorProps> = ({ selectedSlots, onSl
         </ul>
       </div>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between pt-4">
-        <button
-          onClick={onBack}
-          className="px-6 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors font-medium"
-        >
-          ← Back
-        </button>
-        
+      {/* Continue Button */}
+      <div className="flex justify-end pt-4">
         <button
           onClick={handleNext}
           disabled={selectedSlots.length === 0}

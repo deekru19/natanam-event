@@ -9,14 +9,15 @@ const TimeSlotSelector = lazy(() => import('./components/TimeSlotSelector'));
 const PerformanceTypeSelector = lazy(() => import('./components/PerformanceTypeSelector'));
 const RegistrationForm = lazy(() => import('./components/RegistrationForm'));
 const PaymentSummary = lazy(() => import('./components/PaymentSummary'));
-const RazorpayPayment = lazy(() => import('./components/RazorpayPayment'));
+// RazorpayPayment component is no longer needed as payment is integrated into PaymentSummary
+// const RazorpayPayment = lazy(() => import('./components/RazorpayPayment'));
 const PaymentSuccess = lazy(() => import('./components/PaymentSuccess'));
 const PaymentFailure = lazy(() => import('./components/PaymentFailure'));
 const PaymentStatusChecker = lazy(() => import('./components/PaymentStatusChecker'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const FirebaseTest = lazy(() => import('./components/FirebaseTest'));
 
-type Step = 'type' | 'form' | 'slots' | 'payment' | 'razorpay' | 'checking' | 'success' | 'failure';
+type Step = 'type' | 'form' | 'slots' | 'payment' | 'checking' | 'success' | 'failure';
 
 const App: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>('type');
@@ -52,9 +53,10 @@ const App: React.FC = () => {
     }
   };
 
-  const handlePaymentProceed = () => {
-    setCurrentStep('razorpay');
-  };
+  // This function is no longer needed as payment is handled directly in PaymentSummary
+  // const handlePaymentProceed = () => {
+  //   setCurrentStep('razorpay');
+  // };
 
   const handlePaymentSuccess = async (payment: any) => {
     try {
@@ -120,16 +122,13 @@ const App: React.FC = () => {
       case 'payment':
         setCurrentStep('slots');
         break;
-      case 'razorpay':
-        setCurrentStep('payment');
-        break;
       case 'checking':
-        setCurrentStep('razorpay');
+        setCurrentStep('payment');
         break;
       case 'failure':
         // Allow going back from failure to retry payment
         if (paymentData) {
-          setCurrentStep('razorpay');
+          setCurrentStep('payment');
         } else {
           setCurrentStep('payment');
         }
@@ -207,21 +206,8 @@ const App: React.FC = () => {
               performanceType={performanceType}
               participantDetails={participantDetails}
               onBack={handleBack}
-              onProceed={handlePaymentProceed}
-            />
-          </LazyWrapper>
-        );
-      
-      case 'razorpay':
-        return (
-          <LazyWrapper>
-            <RazorpayPayment
-              selectedSlots={selectedSlots}
-              performanceType={performanceType}
-              participantDetails={participantDetails}
               onPaymentSuccess={handlePaymentSuccess}
               onPaymentFailure={handlePaymentFailure}
-              onBack={handleBack}
             />
           </LazyWrapper>
         );
@@ -259,7 +245,7 @@ const App: React.FC = () => {
             <PaymentFailure
               error={error}
               paymentData={paymentData}
-              onRetry={() => setCurrentStep('razorpay')}
+              onRetry={() => setCurrentStep('payment')}
               onBack={handleBack}
             />
           </LazyWrapper>
@@ -464,10 +450,10 @@ const App: React.FC = () => {
         {!['success', 'failure', 'checking'].includes(currentStep) && (
           <div className="mb-6 sm:mb-8">
             <div className="flex items-center justify-center space-x-2 sm:space-x-6 overflow-x-auto pb-2">
-              {['type', 'form', 'slots', 'payment', 'razorpay'].map((step, index) => {
-                const stepNames = ['Choose Type', 'Fill Form', 'Select Slots', 'Payment', 'Pay Now'];
+              {['type', 'form', 'slots', 'payment'].map((step, index) => {
+                const stepNames = ['Choose Type', 'Fill Form', 'Select Slots', 'Payment'];
                 const isActive = currentStep === step;
-                const isCompleted = ['type', 'form', 'slots', 'payment', 'razorpay'].indexOf(currentStep) > index;
+                const isCompleted = ['type', 'form', 'slots', 'payment'].indexOf(currentStep) > index;
               
               return (
                 <div key={step} className="flex items-center flex-shrink-0">
@@ -479,7 +465,7 @@ const App: React.FC = () => {
                   `}>
                     {isCompleted ? '✓' : index + 1}
                   </div>
-                  {index < 4 && (
+                  {index < 3 && (
                     <div className={`
                       w-8 sm:w-16 h-1 mx-2 sm:mx-3 rounded-full transition-all duration-500
                       ${isCompleted ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-slate-200'}
