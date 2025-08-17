@@ -102,31 +102,80 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
 
       const { phone, email } = getContactInfo();
       
-      // Try to create an order on backend with auto-capture; fallback to direct payment if it fails
+      // Create order on backend with auto-capture - CRITICAL for auto-capture to work
+      console.log('🚀 Creating Razorpay order for amount:', totalAmount * 100, 'paise');
       let orderId: string | undefined;
-      try {
-        const orderResp = await fetch('/createRazorpayOrder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: totalAmount * 100,
-            currency: 'INR',
-            notes: {
-              performance_type: performanceType,
-              time_slots: selectedSlots.join(', '),
-              participant_count: participantCount.toString(),
-            },
-          }),
-        });
-        if (orderResp.ok) {
-          const data = await orderResp.json();
-          orderId = data?.order?.id;
-        } else {
-          console.warn('Order creation failed with status:', orderResp.status);
+
+      // Create order function
+      const createOrder = async (url: string) => {
+        try {
+          console.log('🌐 Calling Firebase Function at:', url);
+          
+          const orderResp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount: totalAmount * 100,
+              currency: 'INR',
+              notes: {
+                performance_type: performanceType,
+                time_slots: selectedSlots.join(', '),
+                participant_count: participantCount.toString(),
+              },
+            }),
+          });
+          
+          console.log('📡 Order creation response status:', orderResp.status);
+          console.log('📡 Order creation response headers:', Object.fromEntries(orderResp.headers.entries()));
+          
+          if (orderResp.ok) {
+            const data = await orderResp.json();
+            console.log('✅ Order created successfully:', data);
+            return data?.order?.id;
+          } else {
+            const errorText = await orderResp.text();
+            console.error('❌ Order creation failed with status:', orderResp.status);
+            console.error('❌ Order creation error response:', errorText);
+            throw new Error(`Order creation failed: ${orderResp.status} - ${errorText}`);
+          }
+        } catch (error: any) {
+          console.error('❌ Order creation failed:', error);
+          throw error;
         }
-      } catch (e) {
-        console.warn('Order creation failed, falling back to direct checkout:', e);
+      };
+
+      // Create order using direct Firebase Function URL
+      // This approach works reliably in both local development and production
+      // No more relative URL fallback needed - direct function calls work everywhere
+      try {
+        const projectId = process.env.REACT_APP_FIREBASE_PROJECT_ID;
+        if (!projectId) {
+          throw new Error('Firebase Project ID not configured. Please check environment variables.');
+        }
+        
+        const functionUrl = `https://us-central1-${projectId}.cloudfunctions.net/createRazorpayOrder`;
+        console.log('🌐 Creating order via Firebase Function:', functionUrl);
+        
+        orderId = await createOrder(functionUrl);
+        console.log('✅ Order created successfully via Firebase Function');
+      } catch (orderError: any) {
+        console.error('💥 CRITICAL: Order creation failed:', orderError.message);
+        
+        // Stop payment process - order creation is required for auto-capture
+        setError(`Failed to create payment order: ${orderError.message}. Please try again or contact support.`);
+        setLoading(false);
+        return; // Stop payment process - don't proceed without order
       }
+
+      if (!orderId) {
+        const errorMsg = 'Order ID is missing after successful order creation';
+        console.error('💥 CRITICAL:', errorMsg);
+        setError(errorMsg);
+        setLoading(false);
+        return;
+      }
+
+      console.log('🎬 Opening Razorpay payment modal with order ID:', orderId);
 
       const options: any = {
         key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_your_key_here', // Replace with your Razorpay key
@@ -135,9 +184,9 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
         name: 'Natanam Dance Event',
         description: `${selectedType.name} Performance Registration`,
         image: '/logo192.png', // Your logo
-        ...(orderId ? { order_id: orderId } : {}),
+        order_id: orderId, // ✅ ALWAYS use order ID - required for auto-capture
         handler: function (response: any) {
-          console.log('Payment Success:', response);
+          console.log('🎉 Payment Success:', response);
           onPaymentSuccess({
             paymentId: response.razorpay_payment_id,
             orderId: response.razorpay_order_id,
@@ -170,7 +219,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
       const razorpay = new window.Razorpay(options);
       
       razorpay.on('payment.failed', function (response: any) {
-        console.log('Payment Failed:', response);
+        console.log('❌ Payment Failed:', response);
         onPaymentFailure({
           error: response.error,
           reason: response.error.reason,
@@ -183,7 +232,12 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
       setLoading(false);
       
     } catch (err: any) {
-      console.error('Payment initialization failed:', err);
+      console.error('💥 Payment initialization failed:', err);
+      console.error('💥 Error details:', {
+        message: err.message,
+        stack: err.stack,
+        name: err.name
+      });
       setError(err.message || 'Failed to initialize payment. Please try again.');
       setLoading(false);
     }

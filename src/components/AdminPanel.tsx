@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { exportBookingsToCSV, downloadCSV, getAllFlatBookings, FlatBooking, deleteBooking, updateBooking, addBooking, getAvailableTimeSlots } from '../services/firebaseService';
+import { exportBookingsToCSV, downloadCSV, getAllFlatBookings, FlatBooking, deleteBooking, updateBooking, addBooking, getAvailableTimeSlots, syncPaymentStatusToFlatBookings } from '../services/firebaseService';
 import { getEventDate } from '../utils/timeUtils';
 import { eventConfig } from '../config/eventConfig';
 
@@ -17,6 +17,18 @@ const AdminPanel: React.FC = () => {
     loadBookings();
   }, []);
 
+  // Auto-sync payment status every 30 seconds to keep it updated
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+      // Only sync if not currently loading
+      if (!loading) {
+        syncPaymentStatusToFlatBookings().catch(console.error);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(syncInterval);
+  }, [loading]);
+
   const loadBookings = async () => {
     setLoading(true);
     try {
@@ -25,6 +37,20 @@ const AdminPanel: React.FC = () => {
     } catch (error) {
       console.error('Failed to fetch bookings:', error);
       alert('Failed to fetch bookings. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSyncPaymentStatus = async () => {
+    setLoading(true);
+    try {
+      await syncPaymentStatusToFlatBookings();
+      await loadBookings(); // Reload bookings after sync
+      alert('Payment status synced successfully!');
+    } catch (error) {
+      console.error('Failed to sync payment status:', error);
+      alert('Failed to sync payment status. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -138,6 +164,13 @@ const AdminPanel: React.FC = () => {
               className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
             >
               Add Booking
+            </button>
+            <button
+              onClick={handleSyncPaymentStatus}
+              disabled={loading}
+              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 disabled:opacity-50"
+            >
+              {loading ? 'Syncing...' : '🔄 Sync Payment Status'}
             </button>
             <button
               onClick={handleExportCSV}

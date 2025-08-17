@@ -6,6 +6,7 @@ interface TimeSlotSelectorProps {
   selectedSlots: string[];
   onSlotSelection: (slots: string[]) => void;
   onNext: () => void;
+  onBack: () => void;
 }
 
 interface TimeSection {
@@ -14,7 +15,7 @@ interface TimeSection {
   endTime: number; // in minutes
 }
 
-const TimeSlotSelector: React.FC<TimeSlotSelectorProps> = ({ selectedSlots, onSlotSelection, onNext }) => {
+const TimeSlotSelector: React.FC<TimeSlotSelectorProps> = ({ selectedSlots, onSlotSelection, onNext, onBack }) => {
   const [slots, setSlots] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
@@ -190,8 +191,15 @@ const TimeSlotSelector: React.FC<TimeSlotSelectorProps> = ({ selectedSlots, onSl
         </ul>
       </div>
 
-      {/* Next Button */}
-      <div className="flex justify-end pt-4">
+      {/* Navigation Buttons */}
+      <div className="flex justify-between pt-4">
+        <button
+          onClick={onBack}
+          className="px-6 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors font-medium"
+        >
+          ← Back
+        </button>
+        
         <button
           onClick={handleNext}
           disabled={selectedSlots.length === 0}

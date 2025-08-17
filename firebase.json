@@ -12,6 +12,10 @@
         "function": "createRazorpayOrder"
       },
       {
+        "source": "/testCreateOrder",
+        "function": "testCreateOrder"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

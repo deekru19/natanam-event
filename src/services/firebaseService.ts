@@ -535,6 +535,68 @@ export const getAvailableTimeSlots = async (date: string): Promise<string[]> => 
   return availableSlots.sort();
 };
 
+// Sync payment status from main bookings to flat bookings
+export const syncPaymentStatusToFlatBookings = async (): Promise<void> => {
+  try {
+    console.log("🔄 Syncing payment status from main bookings to flat bookings...");
+
+    // Get all main bookings
+    const mainBookingsRef = collection(db, "bookings");
+    const mainBookingsQuery = query(mainBookingsRef, orderBy("timestamp", "desc"));
+    const mainBookingsSnapshot = await getDocs(mainBookingsQuery);
+
+    // Get all flat bookings
+    const flatBookingsRef = collection(db, "flatBookings");
+    const flatBookingsQuery = query(flatBookingsRef, orderBy("timestamp", "desc"));
+    const flatBookingsSnapshot = await getDocs(flatBookingsQuery);
+
+    const updates: Promise<void>[] = [];
+
+    // For each main booking, find and update corresponding flat bookings
+    mainBookingsSnapshot.forEach((mainDoc) => {
+      const mainBooking = mainDoc.data();
+      const mainBookingId = mainDoc.id;
+
+      if (mainBooking.paymentData?.paymentId || mainBooking.paymentData?.orderId) {
+        // Find flat bookings with this booking ID
+        flatBookingsSnapshot.forEach((flatDoc) => {
+          const flatBooking = flatDoc.data();
+
+          if (flatBooking.bookingId === mainBookingId) {
+            // Update flat booking with latest payment status
+            const updateData: Partial<FlatBooking> = {
+              paymentId: mainBooking.paymentData?.paymentId,
+              paymentStatus: mainBooking.paymentData?.status,
+              paymentAmount: mainBooking.paymentData?.amount,
+              paymentCurrency: mainBooking.paymentData?.currency,
+            };
+
+            // Filter out undefined values
+            const cleanUpdateData = Object.fromEntries(
+              Object.entries(updateData).filter(([_, value]) => value !== undefined)
+            );
+
+            if (Object.keys(cleanUpdateData).length > 0) {
+              updates.push(updateDoc(flatDoc.ref, cleanUpdateData));
+            }
+          }
+        });
+      }
+    });
+
+    // Execute all updates
+    if (updates.length > 0) {
+      await Promise.all(updates);
+      console.log(`✅ Synced payment status for ${updates.length} flat bookings`);
+    } else {
+      console.log("ℹ️ No payment status updates needed");
+    }
+  } catch (error) {
+    console.error("❌ Error syncing payment status:", error);
+    throw error;
+  }
+};
+
 // Check payment and booking status
 export const checkPaymentStatus = async (
   paymentId: string

@@ -194,6 +194,7 @@ const App: React.FC = () => {
               selectedSlots={selectedSlots}
               onSlotSelection={handleSlotSelection}
               onNext={handleSlotsNext}
+              onBack={handleBack}
             />
           </LazyWrapper>
         );
