@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { exportBookingsToCSV, downloadCSV, getAllFlatBookings, FlatBooking, deleteBooking, updateBooking, addBooking, getAvailableTimeSlots, syncPaymentStatusToFlatBookings } from '../services/firebaseService';
+import { exportBookingsToCSV, downloadCSV, getAllFlatBookings, FlatBooking, deleteBooking, updateBooking, addBooking, getAvailableTimeSlots } from '../services/firebaseService';
 import { getEventDate } from '../utils/timeUtils';
 import { eventConfig } from '../config/eventConfig';
 
@@ -8,6 +8,94 @@ const AdminPanel: React.FC = () => {
   const [bookings, setBookings] = useState<FlatBooking[]>([]);
   const [editingBooking, setEditingBooking] = useState<FlatBooking | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Add resizable column functionality
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .resizable-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+      }
+      .resizable-table th {
+        position: relative;
+        user-select: none;
+        border-right: 1px solid #e2e8f0;
+      }
+      .resizable-table th .resize-handle {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 5px;
+        height: 100%;
+        cursor: col-resize;
+        background: transparent;
+        z-index: 1;
+      }
+      .resizable-table th .resize-handle:hover {
+        background: rgba(59, 130, 246, 0.4);
+      }
+      .resizable-table th.resizing {
+        user-select: none;
+      }
+    `;
+    document.head.appendChild(style);
+
+    const addResizeHandlers = () => {
+      const table = document.querySelector('.resizable-table') as HTMLTableElement;
+      if (!table) return;
+
+      const headers = table.querySelectorAll('th');
+      headers.forEach((header, index) => {
+        if (index === headers.length - 1) return; // Skip last column
+
+        // Remove existing handle if any
+        const existingHandle = header.querySelector('.resize-handle');
+        if (existingHandle) existingHandle.remove();
+
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'resize-handle';
+        header.appendChild(resizeHandle);
+
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        resizeHandle.addEventListener('mousedown', (e) => {
+          isResizing = true;
+          startX = e.clientX;
+          startWidth = header.offsetWidth;
+          header.classList.add('resizing');
+          document.body.style.cursor = 'col-resize';
+          e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+          if (!isResizing) return;
+          const diff = e.clientX - startX;
+          const newWidth = Math.max(100, startWidth + diff); // Minimum width of 100px
+          header.style.width = newWidth + 'px';
+          header.style.minWidth = newWidth + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+          if (isResizing) {
+            isResizing = false;
+            header.classList.remove('resizing');
+            document.body.style.cursor = 'default';
+          }
+        });
+      });
+    };
+
+    // Add handlers after a short delay to ensure table is rendered
+    setTimeout(addResizeHandlers, 100);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, [bookings]); // Re-run when bookings change
   const [newBooking, setNewBooking] = useState<Partial<FlatBooking>>({});
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [editAvailableTimeSlots, setEditAvailableTimeSlots] = useState<string[]>([]);
@@ -17,18 +105,6 @@ const AdminPanel: React.FC = () => {
     loadBookings();
   }, []);
 
-  // Auto-sync payment status every 30 seconds to keep it updated
-  useEffect(() => {
-    const syncInterval = setInterval(() => {
-      // Only sync if not currently loading
-      if (!loading) {
-        syncPaymentStatusToFlatBookings().catch(console.error);
-      }
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(syncInterval);
-  }, [loading]);
-
   const loadBookings = async () => {
     setLoading(true);
     try {
@@ -37,20 +113,6 @@ const AdminPanel: React.FC = () => {
     } catch (error) {
       console.error('Failed to fetch bookings:', error);
       alert('Failed to fetch bookings. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSyncPaymentStatus = async () => {
-    setLoading(true);
-    try {
-      await syncPaymentStatusToFlatBookings();
-      await loadBookings(); // Reload bookings after sync
-      alert('Payment status synced successfully!');
-    } catch (error) {
-      console.error('Failed to sync payment status:', error);
-      alert('Failed to sync payment status. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -141,7 +203,16 @@ const AdminPanel: React.FC = () => {
   const formatTimestamp = (timestamp: any): string => {
     if (!timestamp) return 'N/A';
     try {
-      return new Date(timestamp.toDate()).toLocaleString();
+      return new Date(timestamp.toDate()).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
     } catch {
       return 'N/A';
     }
@@ -166,13 +237,6 @@ const AdminPanel: React.FC = () => {
               Add Booking
             </button>
             <button
-              onClick={handleSyncPaymentStatus}
-              disabled={loading}
-              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 disabled:opacity-50"
-            >
-              {loading ? 'Syncing...' : '🔄 Sync Payment Status'}
-            </button>
-            <button
               onClick={handleExportCSV}
               disabled={loading}
               className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 disabled:opacity-50"
@@ -195,67 +259,25 @@ const AdminPanel: React.FC = () => {
             <h3 className="text-lg font-semibold text-slate-800 mb-4">
               All Bookings ({bookings.length} records)
             </h3>
-            <table className="min-w-full bg-white/80 backdrop-blur-sm border border-slate-200 rounded-lg overflow-hidden">
-              <thead className="bg-slate-50">
-                                                    <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Actions
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Booking ID
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Date
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Time
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Type
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Price/Person
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Participant Name
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Full Name
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Phone
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Email
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      City
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Guru Name
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Category
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Amount/Slot
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Timestamp
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Payment ID
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Status
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Paid Amount
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                      Currency
-                    </th>
-                  </tr>
+            <table className="min-w-full bg-white/80 backdrop-blur-sm border border-slate-200 rounded-lg overflow-hidden resizable-table" style={{tableLayout: 'fixed'}}>
+                            <thead className="bg-gradient-to-r from-blue-100 to-indigo-200 text-gray-800">
+                <tr>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '160px', minWidth: '100px'}}>Actions</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '160px', minWidth: '160px'}}>Time</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '90px', minWidth: '90px'}}>Type</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '110px', minWidth: '110px'}}>Price/Person</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '180px', minWidth: '180px'}}>Participant Name</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '140px', minWidth: '140px'}}>Phone</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '220px', minWidth: '220px'}}>Email</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '120px', minWidth: '120px'}}>City</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '150px', minWidth: '150px'}}>Guru Name</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '120px', minWidth: '120px'}}>Category</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '120px', minWidth: '120px'}}>Amount/Slot</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '160px', minWidth: '160px'}}>Timestamp</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '180px', minWidth: '180px'}}>Payment ID</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '120px', minWidth: '120px'}}>Status</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{width: '140px', minWidth: '140px'}}>Booking ID</th>
+                </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {bookings.map((booking, index) => (
@@ -280,12 +302,6 @@ const AdminPanel: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
-                      {booking.bookingId}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
-                      {booking.date}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
                       {booking.timeSlot}
                     </td>
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
@@ -298,10 +314,9 @@ const AdminPanel: React.FC = () => {
                       {booking.participantName}
                     </td>
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
-                      {booking.fullName || '-'}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
-                      {booking.phoneNumber || booking.representativePhone || '-'}
+                      {booking.performanceType === 'duet' 
+                        ? `${booking.participant1Phone || ''} / ${booking.participant2Phone || ''}` 
+                        : booking.phoneNumber || booking.representativePhone || '-'}
                     </td>
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
                       {booking.email || '-'}
@@ -321,7 +336,6 @@ const AdminPanel: React.FC = () => {
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
                       {formatTimestamp(booking.timestamp)}
                     </td>
-                    {/* Payment details columns */}
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
                       {booking.paymentId || '-'}
                     </td>
@@ -329,10 +343,7 @@ const AdminPanel: React.FC = () => {
                       {booking.paymentStatus || '-'}
                     </td>
                     <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
-                      {booking.paymentAmount != null ? `₹${booking.paymentAmount}` : '-'}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-slate-700 border-b border-slate-200">
-                      {booking.paymentCurrency || '-'}
+                      {booking.bookingId}
                     </td>
                   </tr>
                 ))}
@@ -406,24 +417,50 @@ const AdminPanel: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Full Name</label>
-                  <input
-                    type="text"
-                    value={editingBooking.fullName || ''}
-                    onChange={(e) => setEditingBooking({...editingBooking, fullName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Phone</label>
-                  <input
-                    type="text"
-                    value={editingBooking.phoneNumber || ''}
-                    onChange={(e) => setEditingBooking({...editingBooking, phoneNumber: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                </div>
+                
+                {/* Phone number fields - conditional based on performance type */}
+                {editingBooking.performanceType === 'duet' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Participant 1 Phone</label>
+                      <input
+                        type="text"
+                        value={editingBooking.participant1Phone || ''}
+                        onChange={(e) => setEditingBooking({...editingBooking, participant1Phone: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Participant 2 Phone</label>
+                      <input
+                        type="text"
+                        value={editingBooking.participant2Phone || ''}
+                        onChange={(e) => setEditingBooking({...editingBooking, participant2Phone: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                    </div>
+                  </div>
+                ) : editingBooking.performanceType === 'group' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Representative Phone</label>
+                    <input
+                      type="text"
+                      value={editingBooking.representativePhone || ''}
+                      onChange={(e) => setEditingBooking({...editingBooking, representativePhone: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
+                    <input
+                      type="text"
+                      value={editingBooking.phoneNumber || ''}
+                      onChange={(e) => setEditingBooking({...editingBooking, phoneNumber: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Email</label>
                   <input

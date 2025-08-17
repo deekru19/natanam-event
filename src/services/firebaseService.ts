@@ -12,6 +12,7 @@ import {
   query,
   orderBy,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebase/config";
@@ -57,6 +58,10 @@ export interface FlatBooking {
   paymentStatus?: string;
   paymentAmount?: number;
   paymentCurrency?: string;
+  // Booking status
+  bookingStatus?: "pending" | "confirmed" | "cancelled";
+  // Original booking data for webhook processing
+  originalBookingData?: any;
 }
 
 export interface Booking {
@@ -147,28 +152,13 @@ export const subscribeToSlots = (
 // Bookings Management - Flat Structure
 export const createBooking = async (booking: Booking): Promise<string> => {
   try {
-    const bookingsCollection = collection(db, "bookings");
     const flatBookingsCollection = collection(db, "flatBookings");
 
-    // Prepare booking data, filtering out undefined paymentData fields
-    const bookingDataRaw = {
-      ...booking,
-      bookingStatus: booking.paymentData ? "pending" : "confirmed",
-      timestamp: serverTimestamp(),
-    };
-    // Clean nested paymentData
-    const paymentDataClean = bookingDataRaw.paymentData
-      ? Object.fromEntries(
-          Object.entries(bookingDataRaw.paymentData).filter(([_, value]) => value !== undefined)
-        )
-      : undefined;
-    const bookingData = {
-      ...bookingDataRaw,
-      paymentData: paymentDataClean,
-    };
-    const docRef = await addDoc(bookingsCollection, bookingData);
-    const bookingId = docRef.id;
-    // Main booking created
+    // Generate a unique booking ID
+    const bookingId = `booking_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Prepare booking status
+    const bookingStatus = booking.paymentData ? "pending" : "confirmed";
 
     // Create flat booking records for each time slot
     const performanceType = eventConfig.performanceTypes.find(
@@ -266,6 +256,16 @@ export const createBooking = async (booking: Booking): Promise<string> => {
         timestamp: serverTimestamp(),
         totalSlots: booking.timeSlots.length,
         amountPerSlot,
+        bookingStatus,
+        // Store original booking data for webhook processing
+        originalBookingData: {
+          ...booking,
+          paymentData: booking.paymentData
+            ? Object.fromEntries(
+                Object.entries(booking.paymentData).filter(([_, value]) => value !== undefined)
+              )
+            : undefined,
+        },
       };
 
       // Filter out undefined values to prevent Firebase errors
@@ -334,8 +334,7 @@ export const exportBookingsToCSV = async (date?: string): Promise<string> => {
     "Performance Type",
     "Price Per Person",
     "Participant Name",
-    // Solo fields
-    "Full Name",
+    // Contact fields
     "Phone Number",
     "Email",
     "Age",
@@ -370,9 +369,12 @@ export const exportBookingsToCSV = async (date?: string): Promise<string> => {
         booking.performanceTypeName,
         booking.pricePerPerson,
         `"${booking.participantName}"`,
-        // Solo fields
-        `"${booking.fullName || ""}"`,
-        `"${booking.phoneNumber || ""}"`,
+        // Contact fields
+        `"${
+          booking.performanceType === "duet"
+            ? `${booking.participant1Phone || ""} / ${booking.participant2Phone || ""}`
+            : booking.phoneNumber || booking.representativePhone || ""
+        }"`,
         `"${booking.email || ""}"`,
         booking.participantAge || "",
         // Duet fields
@@ -398,6 +400,76 @@ export const exportBookingsToCSV = async (date?: string): Promise<string> => {
   ].join("\n");
 
   return csvContent;
+};
+
+// Find bookings by payment ID or order ID for webhook processing
+export const findFlatBookingsByPaymentId = async (paymentId: string): Promise<FlatBooking[]> => {
+  const flatBookingsCollection = collection(db, "flatBookings");
+  const q = query(flatBookingsCollection, where("paymentId", "==", paymentId));
+  const querySnapshot = await getDocs(q);
+
+  const bookings: FlatBooking[] = [];
+  querySnapshot.forEach((doc) => {
+    bookings.push({ ...(doc.data() as FlatBooking), id: doc.id });
+  });
+
+  return bookings;
+};
+
+export const findFlatBookingsByOrderId = async (orderId: string): Promise<FlatBooking[]> => {
+  const flatBookingsCollection = collection(db, "flatBookings");
+  const q = query(
+    flatBookingsCollection,
+    where("originalBookingData.paymentData.orderId", "==", orderId)
+  );
+  const querySnapshot = await getDocs(q);
+
+  const bookings: FlatBooking[] = [];
+  querySnapshot.forEach((doc) => {
+    bookings.push({ ...(doc.data() as FlatBooking), id: doc.id });
+  });
+
+  return bookings;
+};
+
+export const updateFlatBookingPaymentStatus = async (
+  bookingId: string,
+  paymentData: {
+    status: "success" | "failed" | "pending";
+    paymentId?: string;
+    orderId?: string;
+    capturedAt?: any;
+    webhookProcessed?: boolean;
+  },
+  bookingStatus: "pending" | "confirmed" | "cancelled"
+): Promise<void> => {
+  const flatBookingsCollection = collection(db, "flatBookings");
+  const bookingRef = doc(flatBookingsCollection, bookingId);
+
+  await updateDoc(bookingRef, {
+    paymentStatus: paymentData.status,
+    paymentId: paymentData.paymentId,
+    bookingStatus,
+    "originalBookingData.paymentData.status": paymentData.status,
+    "originalBookingData.paymentData.paymentId": paymentData.paymentId,
+    "originalBookingData.paymentData.orderId": paymentData.orderId,
+    "originalBookingData.paymentData.capturedAt": paymentData.capturedAt,
+    "originalBookingData.paymentData.webhookProcessed": paymentData.webhookProcessed,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const deleteFlatBookingsByBookingId = async (bookingId: string): Promise<void> => {
+  const flatBookingsCollection = collection(db, "flatBookings");
+  const q = query(flatBookingsCollection, where("bookingId", "==", bookingId));
+  const querySnapshot = await getDocs(q);
+
+  const batch = writeBatch(db);
+  querySnapshot.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+
+  await batch.commit();
 };
 
 export const downloadCSV = (csvContent: string, filename: string): void => {
@@ -535,107 +607,39 @@ export const getAvailableTimeSlots = async (date: string): Promise<string[]> => 
   return availableSlots.sort();
 };
 
-// Sync payment status from main bookings to flat bookings
-export const syncPaymentStatusToFlatBookings = async (): Promise<void> => {
-  try {
-    console.log("🔄 Syncing payment status from main bookings to flat bookings...");
-
-    // Get all main bookings
-    const mainBookingsRef = collection(db, "bookings");
-    const mainBookingsQuery = query(mainBookingsRef, orderBy("timestamp", "desc"));
-    const mainBookingsSnapshot = await getDocs(mainBookingsQuery);
-
-    // Get all flat bookings
-    const flatBookingsRef = collection(db, "flatBookings");
-    const flatBookingsQuery = query(flatBookingsRef, orderBy("timestamp", "desc"));
-    const flatBookingsSnapshot = await getDocs(flatBookingsQuery);
-
-    const updates: Promise<void>[] = [];
-
-    // For each main booking, find and update corresponding flat bookings
-    mainBookingsSnapshot.forEach((mainDoc) => {
-      const mainBooking = mainDoc.data();
-      const mainBookingId = mainDoc.id;
-
-      if (mainBooking.paymentData?.paymentId || mainBooking.paymentData?.orderId) {
-        // Find flat bookings with this booking ID
-        flatBookingsSnapshot.forEach((flatDoc) => {
-          const flatBooking = flatDoc.data();
-
-          if (flatBooking.bookingId === mainBookingId) {
-            // Update flat booking with latest payment status
-            const updateData: Partial<FlatBooking> = {
-              paymentId: mainBooking.paymentData?.paymentId,
-              paymentStatus: mainBooking.paymentData?.status,
-              paymentAmount: mainBooking.paymentData?.amount,
-              paymentCurrency: mainBooking.paymentData?.currency,
-            };
-
-            // Filter out undefined values
-            const cleanUpdateData = Object.fromEntries(
-              Object.entries(updateData).filter(([_, value]) => value !== undefined)
-            );
-
-            if (Object.keys(cleanUpdateData).length > 0) {
-              updates.push(updateDoc(flatDoc.ref, cleanUpdateData));
-            }
-          }
-        });
-      }
-    });
-
-    // Execute all updates
-    if (updates.length > 0) {
-      await Promise.all(updates);
-      console.log(`✅ Synced payment status for ${updates.length} flat bookings`);
-    } else {
-      console.log("ℹ️ No payment status updates needed");
-    }
-  } catch (error) {
-    console.error("❌ Error syncing payment status:", error);
-    throw error;
-  }
-};
-
 // Check payment and booking status
 export const checkPaymentStatus = async (
   paymentId: string
 ): Promise<{
-  booking?: Booking;
+  booking?: FlatBooking;
   status: "pending" | "confirmed" | "cancelled" | "not_found";
   webhookProcessed: boolean;
 }> => {
   try {
-    const bookingsRef = collection(db, "bookings");
-    const q = query(bookingsRef, orderBy("timestamp", "desc"));
+    const flatBookingsRef = collection(db, "flatBookings");
+    const q = query(flatBookingsRef, where("paymentId", "==", paymentId));
     const querySnapshot = await getDocs(q);
 
-    let foundBooking: Booking | undefined;
-
-    querySnapshot.forEach((doc) => {
-      const booking = { id: doc.id, ...doc.data() } as Booking;
-      if (booking.paymentData?.paymentId === paymentId) {
-        foundBooking = booking;
-      }
-    });
-
-    if (!foundBooking) {
+    if (querySnapshot.empty) {
       return {
         status: "not_found",
         webhookProcessed: false,
       };
     }
 
-    const webhookProcessed = foundBooking.paymentData?.webhookProcessed || false;
+    const foundBooking = querySnapshot.docs[0].data() as FlatBooking;
+
+    const webhookProcessed =
+      foundBooking.originalBookingData?.paymentData?.webhookProcessed || false;
     let status: "pending" | "confirmed" | "cancelled" = "pending";
 
     if (foundBooking.bookingStatus === "confirmed") {
       status = "confirmed";
     } else if (foundBooking.bookingStatus === "cancelled") {
       status = "cancelled";
-    } else if (foundBooking.paymentData?.status === "success") {
+    } else if (foundBooking.paymentStatus === "success") {
       status = "confirmed";
-    } else if (foundBooking.paymentData?.status === "failed") {
+    } else if (foundBooking.paymentStatus === "failed") {
       status = "cancelled";
     }
 
@@ -656,23 +660,23 @@ export const checkPaymentStatus = async (
 // Listen to booking status changes
 export const listenToBookingStatus = (
   paymentId: string,
-  callback: (status: "pending" | "confirmed" | "cancelled", booking?: Booking) => void
+  callback: (status: "pending" | "confirmed" | "cancelled", booking?: FlatBooking) => void
 ) => {
-  const bookingsRef = collection(db, "bookings");
+  const flatBookingsRef = collection(db, "flatBookings");
 
-  return onSnapshot(bookingsRef, (snapshot) => {
+  return onSnapshot(flatBookingsRef, (snapshot) => {
     snapshot.forEach((doc) => {
-      const booking = { id: doc.id, ...doc.data() } as Booking;
-      if (booking.paymentData?.paymentId === paymentId) {
+      const booking = { id: doc.id, ...doc.data() } as FlatBooking;
+      if (booking.paymentId === paymentId) {
         let status: "pending" | "confirmed" | "cancelled" = "pending";
 
         if (booking.bookingStatus === "confirmed") {
           status = "confirmed";
         } else if (booking.bookingStatus === "cancelled") {
           status = "cancelled";
-        } else if (booking.paymentData?.status === "success") {
+        } else if (booking.paymentStatus === "success") {
           status = "confirmed";
-        } else if (booking.paymentData?.status === "failed") {
+        } else if (booking.paymentStatus === "failed") {
           status = "cancelled";
         }
 
@@ -682,36 +686,43 @@ export const listenToBookingStatus = (
   });
 };
 
-// Cleanup a failed or timed-out booking by paymentId: frees slots, deletes flat bookings and booking
+// Cleanup a failed or timed-out booking by paymentId: frees slots, deletes flat bookings
 export const cleanupFailedBooking = async (paymentId: string): Promise<void> => {
   try {
-    // Find the booking by paymentId
-    const bookingsRef = collection(db, "bookings");
-    const bookingQuery = query(bookingsRef, where("paymentData.paymentId", "==", paymentId));
+    // Find flat bookings by paymentId
+    const flatBookingsRef = collection(db, "flatBookings");
+    const bookingQuery = query(flatBookingsRef, where("paymentId", "==", paymentId));
     const bookingSnapshot = await getDocs(bookingQuery);
 
     if (bookingSnapshot.empty) {
       return; // Nothing to cleanup
     }
 
-    const bookingDoc = bookingSnapshot.docs[0];
-    const booking = { id: bookingDoc.id, ...bookingDoc.data() } as Booking;
+    // Get the first booking to extract slot release info
+    const firstBooking = bookingSnapshot.docs[0].data() as FlatBooking;
 
-    // Free all reserved slots for this booking
-    if (booking?.date && Array.isArray(booking?.timeSlots)) {
+    // Free all reserved slots for this booking if originalBookingData exists
+    if (
+      firstBooking.originalBookingData?.date &&
+      Array.isArray(firstBooking.originalBookingData?.timeSlots)
+    ) {
       await Promise.all(
-        booking.timeSlots.map((slot) => updateSlotStatus(booking.date, slot, "available"))
+        firstBooking.originalBookingData.timeSlots.map((slot: string) =>
+          updateSlotStatus(firstBooking.originalBookingData.date, slot, "available")
+        )
       );
+    } else {
+      // Fallback: free slots individually for each flat booking
+      for (const docSnap of bookingSnapshot.docs) {
+        const booking = docSnap.data() as FlatBooking;
+        await updateSlotStatus(booking.date, booking.timeSlot, "available");
+      }
     }
 
-    // Delete associated flat bookings
-    const flatBookingsRef = collection(db, "flatBookings");
-    const flatQuery = query(flatBookingsRef, where("bookingId", "==", bookingDoc.id));
-    const flatSnapshot = await getDocs(flatQuery);
-    await Promise.all(flatSnapshot.docs.map((docSnap) => deleteDoc(docSnap.ref)));
-
-    // Delete the main booking document
-    await deleteDoc(bookingDoc.ref);
+    // Delete all flat bookings with this paymentId
+    const batch = writeBatch(db);
+    bookingSnapshot.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+    await batch.commit();
   } catch (error) {
     console.error("Error during cleanupFailedBooking:", error);
   }

@@ -14,10 +14,11 @@ describe("firebaseService.createBooking", () => {
   });
 
   it("should create a booking without paymentData and return bookingId", async () => {
-    // Mock first addDoc (bookingsCollection)
-    mockAddDoc.mockResolvedValueOnce({ id: "booking-123" });
-    // Mock subsequent addDoc calls (flatBookingsCollection)
-    mockAddDoc.mockResolvedValue(Promise.resolve());
+    // Mock first addDoc (flatBookingsCollection)
+    mockAddDoc
+      .mockResolvedValueOnce({ id: "flatBooking1" })
+      // Mock subsequent addDoc calls (flatBookingsCollection)
+      .mockResolvedValueOnce({ id: "flatBooking2" });
 
     const bookingInput: Booking = {
       date: "2025-08-07",
@@ -37,24 +38,39 @@ describe("firebaseService.createBooking", () => {
     expect(bookingId).toBe("booking-123");
 
     // Validate addDoc calls
-    // First call: bookingsCollection and data
-    expect(mockAddDoc).toHaveBeenCalledWith(
-      expect.any(Object), // collection reference
+    // Should call addDoc twice (for each time slot in flatBookings)
+    expect(mockAddDoc).toHaveBeenCalledTimes(2);
+
+    // First call: flatBookingsCollection and data for first time slot
+    expect(mockAddDoc).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
       expect.objectContaining({
-        ...bookingInput,
+        bookingId: expect.stringMatching(/^booking_\d+_[a-z0-9]+$/),
+        date: "2025-08-07",
+        timeSlot: "10:00 AM",
+        performanceType: "solo",
         bookingStatus: "confirmed",
-        timestamp: "SERVER_TIMESTAMP",
       })
     );
 
-    // Two flat booking records for each slot
-    expect(mockAddDoc).toHaveBeenCalledTimes(1 + bookingInput.timeSlots.length);
+    // Second call: flatBookingsCollection and data for second time slot
+    expect(mockAddDoc).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({
+        bookingId: expect.stringMatching(/^booking_\d+_[a-z0-9]+$/),
+        date: "2025-08-07",
+        timeSlot: "11:00 AM",
+        performanceType: "solo",
+        bookingStatus: "confirmed",
+      })
+    );
   });
 
   it("should clean nested paymentData and filter undefined fields", async () => {
     // Prepare mocks
-    mockAddDoc.mockResolvedValueOnce({ id: "booking-456" });
-    mockAddDoc.mockResolvedValue(Promise.resolve());
+    mockAddDoc.mockResolvedValue({ id: "flatBooking1" });
 
     const rawPaymentData = {
       paymentId: "pay-001",
@@ -81,13 +97,13 @@ describe("firebaseService.createBooking", () => {
     };
 
     const bookingId = await createBooking(bookingInput);
-    expect(bookingId).toBe("booking-456");
+    expect(bookingId).toMatch(/^booking_\d+_[a-z0-9]+$/);
 
-    // Extract the data passed to the first addDoc call
+    // Extract the data passed to the first addDoc call (flat booking)
     const firstCall = mockAddDoc.mock.calls[0];
     const passedData = firstCall[1];
-    // paymentData should not include undefined fields (orderId, webhookProcessed)
-    expect(passedData.paymentData).toEqual({
+    // originalBookingData.paymentData should not include undefined fields (orderId, webhookProcessed)
+    expect(passedData.originalBookingData.paymentData).toEqual({
       paymentId: "pay-001",
       signature: "sig-abc",
       amount: 150,

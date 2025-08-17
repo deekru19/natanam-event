@@ -60,7 +60,7 @@ const PaymentStatusChecker: React.FC<PaymentStatusCheckerProps> = ({
           clearInterval(countdownInterval);
           setStatus('failed');
           setChecking(false);
-          const reason = booking?.paymentData?.errorReason || 'Payment was declined or failed';
+          const reason = booking?.originalBookingData?.paymentData?.errorReason || 'Payment was declined or failed';
           onStatusFailed(reason);
         }
       }
@@ -83,7 +83,7 @@ const PaymentStatusChecker: React.FC<PaymentStatusCheckerProps> = ({
           clearInterval(statusCheckInterval);
           setStatus('failed');
           setChecking(false);
-          const reason = result.booking?.paymentData?.errorReason || 'Payment was declined or failed';
+          const reason = result.booking?.originalBookingData?.paymentData?.errorReason || 'Payment was declined or failed';
           onStatusFailed(reason);
         } else if (result.status === 'not_found') {
           // If no booking is located for this payment, treat as failure and cleanup defensively

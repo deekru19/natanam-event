@@ -43,7 +43,7 @@ const releaseBookedSlots = async (booking) => {
 // - Option 2: 5 retry attempts with 3-second gaps (total 15 seconds wait time)
 // - Total maximum wait: 17 seconds (2s initial + 15s retries)
 const findBookingByIds = async (paymentId, orderId) => {
-  const bookingRef = admin.firestore().collection("bookings");
+  const flatBookingsRef = admin.firestore().collection("flatBookings");
 
   // Option 1: Initial delay to allow frontend to create booking
   console.log("⏳ Initial delay: Waiting 2 seconds for frontend to create booking...");
@@ -62,23 +62,35 @@ const findBookingByIds = async (paymentId, orderId) => {
 
     // Try to find by payment ID first
     if (paymentId) {
-      let query = await bookingRef.where("paymentData.paymentId", "==", paymentId).get();
+      let query = await flatBookingsRef.where("paymentId", "==", paymentId).get();
       if (!query.empty) {
         const bookingDoc = query.docs[0];
         const bookingData = bookingDoc.data();
         console.log(`✅ Booking found by payment ID on attempt ${attempt}:`, paymentId);
-        return { bookingDoc, bookingData, searchMethod: "paymentId" };
+        return {
+          bookingDoc,
+          bookingData,
+          searchMethod: "paymentId",
+          bookingId: bookingData.bookingId,
+        };
       }
     }
 
     // Fallback: Try to find by order ID
     if (orderId) {
-      let query = await bookingRef.where("paymentData.orderId", "==", orderId).get();
+      let query = await flatBookingsRef
+        .where("originalBookingData.paymentData.orderId", "==", orderId)
+        .get();
       if (!query.empty) {
         const bookingDoc = query.docs[0];
         const bookingData = bookingDoc.data();
         console.log(`✅ Booking found by order ID on attempt ${attempt}:`, orderId);
-        return { bookingDoc, bookingData, searchMethod: "orderId" };
+        return {
+          bookingDoc,
+          bookingData,
+          searchMethod: "orderId",
+          bookingId: bookingData.bookingId,
+        };
       }
     }
 
@@ -163,18 +175,29 @@ exports.razorpayWebhook = functions.https.onRequest(async (req, res) => {
         const bookingResult = await findBookingByIds(payment.id, orderId);
 
         if (bookingResult) {
-          const { bookingDoc, bookingData, searchMethod } = bookingResult;
+          const { bookingDoc, bookingData, searchMethod, bookingId } = bookingResult;
 
-          // Update booking with payment success
-          await bookingDoc.ref.update({
-            "paymentData.status": "success",
-            "paymentData.capturedAt": admin.firestore.FieldValue.serverTimestamp(),
-            "paymentData.webhookProcessed": true,
-            "paymentData.paymentId": payment.id, // Update with latest payment ID
-            "paymentData.orderId": orderId, // Ensure order ID is set
-            bookingStatus: "confirmed",
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          // Update all flat bookings with this bookingId
+          const flatBookingsRef = admin.firestore().collection("flatBookings");
+          const flatQuery = await flatBookingsRef.where("bookingId", "==", bookingId).get();
+
+          const batch = admin.firestore().batch();
+          flatQuery.forEach((docSnap) => {
+            batch.update(docSnap.ref, {
+              paymentStatus: "success",
+              paymentId: payment.id,
+              bookingStatus: "confirmed",
+              "originalBookingData.paymentData.status": "success",
+              "originalBookingData.paymentData.capturedAt":
+                admin.firestore.FieldValue.serverTimestamp(),
+              "originalBookingData.paymentData.webhookProcessed": true,
+              "originalBookingData.paymentData.paymentId": payment.id,
+              "originalBookingData.paymentData.orderId": orderId,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
           });
+
+          await batch.commit();
 
           console.log(
             `✅ Booking confirmed for ${searchMethod}:`,
@@ -186,7 +209,7 @@ exports.razorpayWebhook = functions.https.onRequest(async (req, res) => {
             message: "Payment captured and booking confirmed",
             payment_id: payment.id,
             order_id: orderId,
-            booking_id: bookingDoc.id,
+            booking_id: bookingId,
             search_method: searchMethod,
           });
         } else {
@@ -221,24 +244,30 @@ exports.razorpayWebhook = functions.https.onRequest(async (req, res) => {
         const bookingResult = await findBookingByIds(payment.id, orderId);
 
         if (bookingResult) {
-          const { bookingDoc, bookingData, searchMethod } = bookingResult;
+          const { bookingDoc, bookingData, searchMethod, bookingId } = bookingResult;
           console.log(
             `🗑️ Cleaning up failed booking found by ${searchMethod}:`,
             searchMethod === "paymentId" ? payment.id : orderId
           );
 
-          // Release the booked slots
-          await releaseBookedSlots(bookingData);
+          // Release the booked slots using the original booking data
+          if (bookingData.originalBookingData) {
+            await releaseBookedSlots(bookingData.originalBookingData);
+          } else {
+            // Fallback: release slots for this specific time slot
+            const slotsRef = admin.firestore().doc(`slots/${bookingData.date}`);
+            const updates = {};
+            updates[bookingData.timeSlot] = "available";
+            await slotsRef.update(updates);
+          }
           console.log("✅ Slots released for failed payment");
 
-          // Delete related flat bookings
+          // Delete all flat bookings with this bookingId
           const flatBookingsRef = admin.firestore().collection("flatBookings");
-          const flatQuery = await flatBookingsRef.where("bookingId", "==", bookingDoc.id).get();
+          const flatQuery = await flatBookingsRef.where("bookingId", "==", bookingId).get();
           const batch = admin.firestore().batch();
           flatQuery.forEach((docSnap) => batch.delete(docSnap.ref));
 
-          // Delete the main booking document
-          batch.delete(bookingDoc.ref);
           await batch.commit();
 
           console.log("✅ Failed booking and related flat bookings deleted");
@@ -475,36 +504,58 @@ exports.cleanupExpiredBookings = onSchedule(
         now.toMillis() - thresholdMinutes * 60 * 1000
       );
 
-      const bookingsRef = admin.firestore().collection("bookings");
-      const pendingSnapshot = await bookingsRef.where("bookingStatus", "==", "pending").get();
+      const flatBookingsRef = admin.firestore().collection("flatBookings");
+      const pendingSnapshot = await flatBookingsRef.where("bookingStatus", "==", "pending").get();
 
       if (pendingSnapshot.empty) {
         return null;
       }
 
+      // Group by bookingId to avoid duplicate cleanup
+      const processedBookingIds = new Set();
+
       for (const docSnap of pendingSnapshot.docs) {
         const booking = docSnap.data();
         const createdAt = booking.timestamp;
+        const bookingId = booking.bookingId;
+
+        // Skip if already processed this bookingId
+        if (processedBookingIds.has(bookingId)) {
+          continue;
+        }
 
         if (!createdAt || createdAt.toMillis() > cutoff.toMillis()) {
           continue;
         }
 
-        if (booking.bookingStatus === "confirmed" || booking.paymentData?.status === "success") {
+        if (
+          booking.bookingStatus === "confirmed" ||
+          booking.originalBookingData?.paymentData?.status === "success"
+        ) {
           continue;
         }
 
-        await releaseBookedSlots(booking);
+        // Release slots using the original booking data
+        if (booking.originalBookingData) {
+          await releaseBookedSlots(booking.originalBookingData);
+        } else {
+          // Fallback: release slot for this specific time slot
+          const slotsRef = admin.firestore().doc(`slots/${booking.date}`);
+          const updates = {};
+          updates[booking.timeSlot] = "available";
+          await slotsRef.update(updates);
+        }
 
+        // Delete all flat bookings with this bookingId
         const batch = admin.firestore().batch();
-        const flatRef = admin.firestore().collection("flatBookings");
-        const flats = await flatRef.where("bookingId", "==", docSnap.id).get();
-        flats.forEach((f) => batch.delete(f.ref));
-        batch.delete(docSnap.ref);
+        const allFlatBookings = await flatBookingsRef.where("bookingId", "==", bookingId).get();
+        allFlatBookings.forEach((f) => batch.delete(f.ref));
         await batch.commit();
 
+        processedBookingIds.add(bookingId);
+
         console.log(
-          `Cleaned up expired pending booking ${docSnap.id} (older than ${thresholdMinutes} min)`
+          `Cleaned up expired pending booking ${bookingId} (older than ${thresholdMinutes} min)`
         );
       }
 
