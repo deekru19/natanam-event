@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { exportBookingsToCSV, downloadCSV, getAllFlatBookings, FlatBooking, deleteBooking, updateBooking, addBooking, getAvailableTimeSlots } from '../services/firebaseService';
-import { getEventDate } from '../utils/timeUtils';
 import { eventConfig } from '../config/eventConfig';
+import MessageModal from './MessageModal';
 
 const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -99,6 +99,7 @@ const AdminPanel: React.FC = () => {
   const [newBooking, setNewBooking] = useState<Partial<FlatBooking>>({});
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [editAvailableTimeSlots, setEditAvailableTimeSlots] = useState<string[]>([]);
+  const [showMessageModal, setShowMessageModal] = useState(false);
 
   // Load bookings on component mount
   useEffect(() => {
@@ -235,6 +236,13 @@ const AdminPanel: React.FC = () => {
               className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
             >
               Add Booking
+            </button>
+            <button
+              onClick={() => setShowMessageModal(true)}
+              disabled={loading || bookings.length === 0}
+              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 disabled:opacity-50"
+            >
+              Message ({bookings.length})
             </button>
             <button
               onClick={handleExportCSV}
@@ -661,6 +669,13 @@ const AdminPanel: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Message Modal */}
+        <MessageModal
+          isOpen={showMessageModal}
+          onClose={() => setShowMessageModal(false)}
+          bookings={bookings}
+        />
       </div>
     </div>
   );
