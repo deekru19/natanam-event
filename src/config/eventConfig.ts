@@ -18,7 +18,7 @@ export interface PerformanceType {
 export interface FormField {
   id: string;
   label: string;
-  type: "text" | "number" | "textarea" | "checkbox";
+  type: "text" | "number" | "tel" | "textarea" | "checkbox";
   required: boolean;
   placeholder?: string;
 }
@@ -127,9 +127,9 @@ export const eventConfig: EventConfig = {
         {
           id: "phoneNumber",
           label: "Phone Number of the participant / parent",
-          type: "text",
+          type: "tel",
           required: true,
-          placeholder: "Your answer",
+          placeholder: "10 digit mobile number",
         },
         {
           id: "cityResidence",
@@ -176,9 +176,9 @@ export const eventConfig: EventConfig = {
         {
           id: "participant1Phone",
           label: "Phone number of participant 1/parent",
-          type: "text",
+          type: "tel",
           required: true,
-          placeholder: "Your answer",
+          placeholder: "10 digit mobile number",
         },
         {
           id: "participant2Name",
@@ -190,9 +190,9 @@ export const eventConfig: EventConfig = {
         {
           id: "participant2Phone",
           label: "Phone Number of the participant 2 / parent",
-          type: "text",
+          type: "tel",
           required: true,
-          placeholder: "Your answer",
+          placeholder: "10 digit mobile number",
         },
         {
           id: "cityResidence",
@@ -239,9 +239,9 @@ export const eventConfig: EventConfig = {
         {
           id: "representativePhone",
           label: "Phone Number of the group representative / parent in-charge",
-          type: "text",
+          type: "tel",
           required: true,
-          placeholder: "Your answer",
+          placeholder: "10 digit mobile number",
         },
         {
           id: "cityResidence",

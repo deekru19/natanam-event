@@ -206,8 +206,18 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
         <input
           type={field.type}
           value={value}
-          onChange={(e) => handleInputChange(field.id, e.target.value)}
+          onChange={(e) => {
+            if (field.type === 'tel') {
+              // Only allow numeric characters for phone fields
+              const numericValue = e.target.value.replace(/[^0-9]/g, '');
+              handleInputChange(field.id, numericValue);
+            } else {
+              handleInputChange(field.id, e.target.value);
+            }
+          }}
           placeholder={field.placeholder}
+          inputMode={field.type === 'tel' ? 'numeric' : undefined}
+          pattern={field.type === 'tel' ? '[0-9]*' : undefined}
           className={`
             w-full px-3 sm:px-4 py-2 sm:py-3 border-2 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-all duration-300 text-sm sm:text-base
             ${error ? 'border-red-400 bg-red-50' : 'border-slate-200 hover:border-rose-300'}
