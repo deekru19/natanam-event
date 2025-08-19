@@ -178,7 +178,7 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
         key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_your_key_here',
         amount: totalCost * 100,
         currency: 'INR',
-        name: 'Natanam Dance Event',
+        name: eventConfig.eventName,
         description: `${selectedType.name} Performance Registration`,
         image: '/logo192.png',
         order_id: orderId,
@@ -330,7 +330,6 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
         <ul className="text-sm text-yellow-700 space-y-1">
           <li>• Please complete the payment using UPI or any preferred method</li>
           <li>• Amount to pay: ₹{totalCost.toLocaleString()}</li>
-          <li>• You can optionally upload a screenshot of your payment proof</li>
           <li>• Your booking will be confirmed after payment verification</li>
         </ul>
       </div>

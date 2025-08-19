@@ -181,7 +181,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
         key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_your_key_here', // Replace with your Razorpay key
         amount: totalAmount * 100, // Amount in paise
         currency: 'INR',
-        name: 'Natanam Dance Event',
+        name: eventConfig.eventName,
         description: `${selectedType.name} Performance Registration`,
         image: '/logo192.png', // Your logo
         order_id: orderId, // ✅ ALWAYS use order ID - required for auto-capture

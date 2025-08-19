@@ -1,4 +1,5 @@
 export interface EventConfig {
+  eventName: string; // Display name for the event
   eventDate: string; // YYYY-MM-DD format
   startTime: string; // HH:MM format (24-hour)
   endTime: string; // HH:MM format (24-hour)
@@ -37,7 +38,8 @@ export interface TimePricingConfig {
 }
 
 export const eventConfig: EventConfig = {
-  eventDate: "2024-12-15", // Configure your event date here
+  eventName: "Shyamotsava", // Configure your event name here
+  eventDate: "2025-08-16", // Configure your event date here
   startTime: "09:00", // 9 AM
   endTime: "20:00", // 8 PM
   slotDuration: 10, // 10 minutes

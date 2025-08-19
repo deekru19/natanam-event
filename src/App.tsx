@@ -443,7 +443,7 @@ const App: React.FC = () => {
             Admin
           </button>
           <p className="text-slate-700 text-sm sm:text-lg font-medium">
-            Register for the quarterly dance event on {new Date(eventConfig.eventDate).toLocaleDateString()}
+            Register for the {eventConfig.eventName} on {new Date(eventConfig.eventDate).toLocaleDateString()}
           </p>
         </div>
 

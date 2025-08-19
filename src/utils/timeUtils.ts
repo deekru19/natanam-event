@@ -182,7 +182,9 @@ export const getSlotBorderColor = (timeSlot: string): string => {
   return eventConfig.timePricing.pricing[tier]!.borderColor;
 };
 
-export const getTierDisplayName = (tier: "offPeak" | "midPeak" | "onPeak" | null): string | null => {
+export const getTierDisplayName = (
+  tier: "offPeak" | "midPeak" | "onPeak" | null
+): string | null => {
   if (!tier || !eventConfig.timePricing?.enabled) {
     return null;
   }

@@ -1,5 +1,6 @@
 // WhatsApp messaging service using Facebook Cloud API
 import { FlatBooking } from "./firebaseService";
+import { eventConfig } from "../config/eventConfig";
 
 interface WhatsAppMessage {
   messaging_product: string;
@@ -44,7 +45,7 @@ class WhatsAppService {
       "{phone}":
         booking.phoneNumber || booking.participant1Phone || booking.representativePhone || "N/A",
       "{booking_id}": booking.bookingId || "N/A",
-      "{event_name}": "Natanam Dance Event",
+      "{event_name}": eventConfig.eventName,
       "{event_date}": booking.date || "N/A",
       "{event_time}": booking.timeSlot || "N/A",
       "{performance_type}": booking.performanceTypeName || booking.performanceType || "N/A",

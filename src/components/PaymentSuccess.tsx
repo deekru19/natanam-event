@@ -100,9 +100,8 @@ const PaymentSuccess: React.FC<PaymentSuccessProps> = ({
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
         <h4 className="font-medium text-blue-800 mb-2">What's Next?</h4>
         <ul className="text-sm text-blue-700 space-y-1 text-left">
-          <li>• You will receive a confirmation email within 5 minutes</li>
           <li>• Please arrive 15 minutes before your first time slot</li>
-          <li>• Bring a copy of this confirmation for verification</li>
+          <li>• Bring a screenshot of this confirmation for verification</li>
           <li>• Contact us if you have any questions</li>
         </ul>
       </div>
