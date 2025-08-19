@@ -194,6 +194,7 @@ const App: React.FC = () => {
               onSlotSelection={handleSlotSelection}
               onNext={handleSlotsNext}
               onBack={handleBack}
+              performanceType={performanceType}
             />
           </LazyWrapper>
         );
@@ -428,19 +429,19 @@ const App: React.FC = () => {
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 relative z-10">
         {/* Header */}
-        <div className="text-center mb-6 sm:mb-8">
-          <div className="relative">
+        <div className="text-center mb-6 sm:mb-8 relative">
+          <div className="pr-16 sm:pr-20">
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-rose-600 via-orange-600 to-amber-600 bg-clip-text text-transparent mb-2 font-heading leading-tight">
               Dance Event Registration
             </h1>
             <div className="w-16 sm:w-24 h-1 bg-gradient-to-r from-rose-500 to-orange-500 mx-auto rounded-full mb-4"></div>
-            <button
-              onClick={handleAdminClick}
-              className="absolute top-0 right-0 px-3 sm:px-4 py-2 text-xs sm:text-sm bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-full hover:from-slate-700 hover:to-slate-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-            >
-              Admin
-            </button>
           </div>
+          <button
+            onClick={handleAdminClick}
+            className="absolute top-0 right-0 px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-lg hover:from-slate-700 hover:to-slate-800 transition-all duration-300 shadow-md hover:shadow-lg"
+          >
+            Admin
+          </button>
           <p className="text-slate-700 text-sm sm:text-lg font-medium">
             Register for the quarterly dance event on {new Date(eventConfig.eventDate).toLocaleDateString()}
           </p>

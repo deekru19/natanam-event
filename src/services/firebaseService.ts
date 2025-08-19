@@ -18,6 +18,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebase/config";
 import { TimeSlot } from "../utils/timeUtils";
 import { eventConfig } from "../config/eventConfig";
+import { getPriceForSlot } from "../utils/timeUtils";
 
 // Flat booking structure for easy CSV export
 export interface FlatBooking {
@@ -164,7 +165,6 @@ export const createBooking = async (booking: Booking): Promise<string> => {
     const performanceType = eventConfig.performanceTypes.find(
       (pt) => pt.id === booking.performanceType
     );
-    const pricePerPerson = performanceType?.pricePerPerson || 0;
 
     // Calculate participant count
     let participantCount = 1;
@@ -188,14 +188,27 @@ export const createBooking = async (booking: Booking): Promise<string> => {
         break;
     }
 
-    const amountPerSlot = pricePerPerson * participantCount;
+    // Calculate total amount using time-based pricing if enabled
+    const calculateTotalAmount = () => {
+      return booking.timeSlots.reduce((total, slot) => {
+        const slotPrice = getPriceForSlot(slot, booking.performanceType);
+        return total + slotPrice * participantCount;
+      }, 0);
+    };
+
+    const totalAmount = calculateTotalAmount();
+    const fallbackPricePerPerson = performanceType?.pricePerPerson || 0;
 
     console.log("💰 Pricing calculated:", {
-      pricePerPerson,
+      timePricingEnabled: eventConfig.timePricing?.enabled,
+      fallbackPricePerPerson,
       participantCount,
-      amountPerSlot,
-      totalAmountForAllSlots: amountPerSlot * booking.timeSlots.length,
+      totalAmount,
       slotsCount: booking.timeSlots.length,
+      slotBreakdown: booking.timeSlots.map((slot) => ({
+        slot,
+        price: getPriceForSlot(slot, booking.performanceType),
+      })),
     });
 
     // Create participant display name based on performance type
@@ -219,13 +232,16 @@ export const createBooking = async (booking: Booking): Promise<string> => {
     // Create flat booking records
     console.log("📋 Creating flat booking records...");
     for (const timeSlot of booking.timeSlots) {
+      const slotPrice = getPriceForSlot(timeSlot, booking.performanceType);
+      const amountPerSlot = slotPrice * participantCount;
+
       const flatBooking: FlatBooking = {
         bookingId,
         date: booking.date,
         timeSlot,
         performanceType: booking.performanceType,
         performanceTypeName: performanceType?.name || "",
-        pricePerPerson,
+        pricePerPerson: slotPrice, // Use slot-specific pricing
         participantName,
         // Solo fields
         participantAge: booking.participantDetails.age,

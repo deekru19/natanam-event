@@ -254,15 +254,9 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      {/* Consistent Header with Back Button */}
+      {/* Header without Back Button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <button
-            onClick={onBack}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-          >
-            ← Back
-          </button>
           <h3 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-rose-600 to-orange-600 bg-clip-text text-transparent font-heading">
             {selectedType.name} Registration Form
           </h3>
@@ -304,10 +298,17 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
           </div>
         </div>
         
-        <div className="flex justify-end pt-4 sm:pt-6">
+        {/* Bottom Navigation */}
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pt-4 sm:pt-6">
+          <button
+            onClick={onBack}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm w-full sm:w-auto"
+          >
+            ← Back
+          </button>
           <button
             type="submit"
-            className="px-6 sm:px-8 py-2 sm:py-3 bg-gradient-to-r from-rose-600 to-orange-600 text-white rounded-full hover:from-rose-700 hover:to-orange-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl font-semibold text-sm sm:text-base"
+            className="px-6 sm:px-8 py-2 sm:py-3 bg-gradient-to-r from-rose-600 to-orange-600 text-white rounded-full hover:from-rose-700 hover:to-orange-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl font-semibold text-sm sm:text-base w-full sm:w-auto"
           >
             Continue
           </button>

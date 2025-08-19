@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { eventConfig } from '../config/eventConfig';
+import { getPriceForSlot, getPricingTier, getTierDisplayName } from '../utils/timeUtils';
 
 interface PaymentSummaryProps {
   selectedSlots: string[];
@@ -49,7 +50,25 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
   };
 
   const participantCount = getParticipantCount();
-  const totalCost = selectedSlots.length * selectedType.pricePerPerson * participantCount;
+  
+  // Calculate total cost using time-based pricing
+  const calculateTotalCost = () => {
+    return selectedSlots.reduce((total, slot) => {
+      const slotPrice = getPriceForSlot(slot, performanceType);
+      return total + (slotPrice * participantCount);
+    }, 0);
+  };
+  
+  const totalCost = calculateTotalCost();
+
+  // Get slot pricing breakdown for display
+  const getSlotPricingBreakdown = () => {
+    return selectedSlots.map(slot => ({
+      slot,
+      price: getPriceForSlot(slot, performanceType),
+      tier: getPricingTier(slot)
+    }));
+  };
 
   const getParticipantDisplayName = () => {
     switch (performanceType) {
@@ -216,15 +235,9 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Consistent Header with Back Button */}
+      {/* Header without Back Button */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={onBack}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-          >
-            ← Back
-          </button>
+        <div>
           <h3 className="text-xl font-bold text-gray-800">Payment Summary</h3>
         </div>
       </div>
@@ -246,9 +259,20 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
               <p><span className="font-medium">Selected:</span> {selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''}</p>
               <p><span className="font-medium">Times:</span></p>
               <div className="ml-4">
-                {selectedSlots.map((slot, index) => (
-                  <p key={index} className="text-gray-600">• {slot}</p>
-                ))}
+                {eventConfig.timePricing?.enabled ? (
+                  getSlotPricingBreakdown().map((slotInfo, index) => (
+                    <p key={index} className="text-gray-600 flex justify-between">
+                      <span>• {slotInfo.slot}</span>
+                      <span className="text-xs">
+                        {slotInfo.tier && getTierDisplayName(slotInfo.tier) && `${getTierDisplayName(slotInfo.tier)} - `}₹{slotInfo.price}
+                      </span>
+                    </p>
+                  ))
+                ) : (
+                  selectedSlots.map((slot, index) => (
+                    <p key={index} className="text-gray-600">• {slot}</p>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -256,9 +280,27 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
 
         <div className="border-t pt-4">
           <div className="space-y-2">
+            {eventConfig.timePricing?.enabled ? (
+              <div className="text-sm text-slate-600">
+                <p className="font-medium mb-2">Pricing Breakdown:</p>
+                {getSlotPricingBreakdown().map((slotInfo, index) => (
+                  <div key={index} className="flex justify-between items-center">
+                    <span>{slotInfo.slot} × {participantCount} person{participantCount !== 1 ? 's' : ''}</span>
+                    <span>₹{(slotInfo.price * participantCount).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center text-sm text-slate-600">
+                  <span>Price per person:</span>
+                  <span>₹{selectedType.pricePerPerson}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between items-center text-sm text-slate-600">
-              <span>Price per person:</span>
-              <span>₹{selectedType.pricePerPerson}</span>
+              <span>Number of participants:</span>
+              <span>{participantCount}</span>
             </div>
             <div className="flex justify-between items-center text-sm text-slate-600">
               <span>Number of participants:</span>
@@ -273,9 +315,11 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
                 <span>Total Amount:</span>
                 <span className="text-slate-700">₹{totalCost.toLocaleString()}</span>
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                ₹{selectedType.pricePerPerson} × {participantCount} person{participantCount !== 1 ? 's' : ''} × {selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''}
-              </p>
+              {!eventConfig.timePricing?.enabled && (
+                <p className="text-xs text-slate-500 mt-1">
+                  ₹{selectedType.pricePerPerson} × {participantCount} person{participantCount !== 1 ? 's' : ''} × {selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -298,13 +342,19 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
         </div>
       )}
 
-      {/* Payment Button */}
-      <div className="flex justify-end">
+      {/* Bottom Navigation */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <button
+          onClick={onBack}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm w-full sm:w-auto"
+        >
+          ← Back
+        </button>
         <button
           onClick={handlePayment}
           disabled={loading}
           className={`
-            px-8 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+            px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto
             ${loading 
               ? 'bg-gray-400 text-white cursor-not-allowed' 
               : 'bg-green-600 text-white hover:bg-green-700'

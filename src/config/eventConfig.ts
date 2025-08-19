@@ -4,12 +4,13 @@ export interface EventConfig {
   endTime: string; // HH:MM format (24-hour)
   slotDuration: number; // in minutes
   performanceTypes: PerformanceType[];
+  timePricing?: TimePricingConfig; // Optional time-based pricing
 }
 
 export interface PerformanceType {
   id: string;
   name: string;
-  pricePerPerson: number;
+  pricePerPerson: number; // Used as fallback if timePricing not configured
   formFields: FormField[];
 }
 
@@ -21,11 +22,86 @@ export interface FormField {
   placeholder?: string;
 }
 
+export interface TimePricingConfig {
+  enabled: boolean;
+  timeRanges: {
+    offPeak?: { start: string; end: string; displayName: string }; // HH:MM format, optional
+    midPeak?: { start: string; end: string; displayName: string }; // Optional
+    onPeak?: { start: string; end: string; displayName: string }; // Optional
+  };
+  pricing: {
+    offPeak?: { solo: number; duet: number; group: number; color: string; borderColor: string }; // Optional
+    midPeak?: { solo: number; duet: number; group: number; color: string; borderColor: string }; // Optional
+    onPeak?: { solo: number; duet: number; group: number; color: string; borderColor: string }; // Optional
+  };
+}
+
 export const eventConfig: EventConfig = {
   eventDate: "2024-12-15", // Configure your event date here
   startTime: "09:00", // 9 AM
   endTime: "20:00", // 8 PM
   slotDuration: 10, // 10 minutes
+
+  // Optional: Enable time-based pricing by uncommenting below
+  // Example with all 3 tiers:
+  timePricing: {
+    enabled: true,
+    timeRanges: {
+      offPeak: { start: "09:00", end: "12:00", displayName: "Early Bird" },
+      midPeak: { start: "12:00", end: "17:00", displayName: "Regular" },
+      onPeak: { start: "17:00", end: "20:00", displayName: "Prime Time" },
+    },
+    pricing: {
+      offPeak: {
+        solo: 1200,
+        duet: 650,
+        group: 400,
+        color: "#ffffffff", // yellow-100 (lighter)
+        borderColor: "#edca8eff", // yellow-500 (darker border)
+      },
+      midPeak: {
+        solo: 1500,
+        duet: 800,
+        group: 500,
+        color: "#ffffffff", // orange-200 (lighter)
+        borderColor: "#9ee96fff", // orange-600 (darker border)
+      },
+      onPeak: {
+        solo: 1800,
+        duet: 950,
+        group: 600,
+        color: "#ffffffff", // violet-200 (lighter)
+        borderColor: "#bca6e3ff", // violet-600 (darker border)
+      },
+    },
+  },
+
+  // Example with only 2 tiers (peak and off-peak):
+  // timePricing: {
+  //   enabled: true,
+  //   timeRanges: {
+  //     offPeak: { start: "09:00", end: "17:00", displayName: "Regular Hours" },
+  //     onPeak: { start: "17:00", end: "20:00", displayName: "Prime Time" },
+  //   },
+  //   pricing: {
+  //     offPeak: {
+  //       solo: 1200, duet: 650, group: 400,
+  //       color: "#FEF3C7",
+  //       borderColor: "#F59E0B"
+  //     },
+  //     onPeak: {
+  //       solo: 1800, duet: 950, group: 600,
+  //       color: "#E9D5FF",
+  //       borderColor: "#7C3AED"
+  //     },
+  //   },
+  // },
+
+  // Example with only 1 tier (all same pricing as before):
+  // timePricing: {
+  //   enabled: false,
+  // },
+
   performanceTypes: [
     {
       id: "solo",

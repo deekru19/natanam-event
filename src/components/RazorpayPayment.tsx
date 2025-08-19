@@ -247,12 +247,6 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-800">Complete Payment</h3>
-        <button
-          onClick={onBack}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-        >
-          ← Back
-        </button>
       </div>
 
       {/* Payment Summary */}
@@ -316,18 +310,19 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
         </div>
       )}
 
-      <div className="flex justify-end space-x-3">
+      {/* Bottom Navigation */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <button
           onClick={onBack}
-          className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm w-full sm:w-auto"
           disabled={loading}
         >
-          Back
+          ← Back
         </button>
         <button
           onClick={handlePayment}
           disabled={loading}
-          className="px-8 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+          className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium w-full sm:w-auto"
         >
           {loading ? 'Processing...' : `Pay ₹${totalAmount.toLocaleString()}`}
         </button>
