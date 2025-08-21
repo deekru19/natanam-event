@@ -7,6 +7,7 @@ import LazyWrapper from './components/LazyWrapper';
 // Lazy load components for better performance
 const TimeSlotSelector = lazy(() => import('./components/TimeSlotSelector'));
 const PerformanceTypeSelector = lazy(() => import('./components/PerformanceTypeSelector'));
+const RulesDisplay = lazy(() => import('./components/RulesDisplay'));
 const RegistrationForm = lazy(() => import('./components/RegistrationForm'));
 const PaymentSummary = lazy(() => import('./components/PaymentSummary'));
 // RazorpayPayment component is no longer needed as payment is integrated into PaymentSummary
@@ -17,7 +18,7 @@ const PaymentStatusChecker = lazy(() => import('./components/PaymentStatusChecke
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const FirebaseTest = lazy(() => import('./components/FirebaseTest'));
 
-type Step = 'type' | 'form' | 'slots' | 'payment' | 'checking' | 'success' | 'failure';
+type Step = 'type' | 'rules' | 'form' | 'slots' | 'payment' | 'checking' | 'success' | 'failure';
 
 const App: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>('type');
@@ -35,6 +36,10 @@ const App: React.FC = () => {
 
   const handleTypeSelection = (type: string) => {
     setPerformanceType(type);
+    setCurrentStep('rules');
+  };
+
+  const handleRulesContinue = () => {
     setCurrentStep('form');
   };
 
@@ -113,8 +118,11 @@ const App: React.FC = () => {
 
   const handleBack = () => {
     switch (currentStep) {
-      case 'form':
+      case 'rules':
         setCurrentStep('type');
+        break;
+      case 'form':
+        setCurrentStep('rules');
         break;
       case 'slots':
         setCurrentStep('form');
@@ -171,6 +179,16 @@ const App: React.FC = () => {
             <PerformanceTypeSelector
               selectedType={performanceType}
               onTypeSelection={handleTypeSelection}
+            />
+          </LazyWrapper>
+        );
+      
+      case 'rules':
+        return (
+          <LazyWrapper>
+            <RulesDisplay
+              onContinue={handleRulesContinue}
+              onBack={handleBack}
             />
           </LazyWrapper>
         );
@@ -432,7 +450,7 @@ const App: React.FC = () => {
         <div className="text-center mb-6 sm:mb-8 relative">
           <div className="pr-16 sm:pr-20">
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-rose-600 via-orange-600 to-amber-600 bg-clip-text text-transparent mb-2 font-heading leading-tight">
-              Dance Event Registration
+              {eventConfig.eventName} Registration
             </h1>
             <div className="w-16 sm:w-24 h-1 bg-gradient-to-r from-rose-500 to-orange-500 mx-auto rounded-full mb-4"></div>
           </div>
@@ -442,19 +460,16 @@ const App: React.FC = () => {
           >
             Admin
           </button>
-          <p className="text-slate-700 text-sm sm:text-lg font-medium">
-            Register for the {eventConfig.eventName} on {new Date(eventConfig.eventDate).toLocaleDateString()}
-          </p>
         </div>
 
         {/* Progress Indicator - Hide on success/failure/checking pages */}
         {!['success', 'failure', 'checking'].includes(currentStep) && (
           <div className="mb-6 sm:mb-8">
             <div className="flex items-center justify-center space-x-2 sm:space-x-6 overflow-x-auto pb-2">
-              {['type', 'form', 'slots', 'payment'].map((step, index) => {
-                const stepNames = ['Choose Type', 'Fill Form', 'Select Slots', 'Payment'];
+              {['type', 'rules', 'form', 'slots', 'payment'].map((step, index) => {
+                const stepNames = ['Choose Type', 'Read Rules', 'Fill Form', 'Select Slots', 'Payment'];
                 const isActive = currentStep === step;
-                const isCompleted = ['type', 'form', 'slots', 'payment'].indexOf(currentStep) > index;
+                const isCompleted = ['type', 'rules', 'form', 'slots', 'payment'].indexOf(currentStep) > index;
               
               return (
                 <div key={step} className="flex items-center flex-shrink-0">
@@ -466,7 +481,7 @@ const App: React.FC = () => {
                   `}>
                     {isCompleted ? '✓' : index + 1}
                   </div>
-                  {index < 3 && (
+                  {index < 4 && (
                     <div className={`
                       w-8 sm:w-16 h-1 mx-2 sm:mx-3 rounded-full transition-all duration-500
                       ${isCompleted ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-slate-200'}

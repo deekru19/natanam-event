@@ -6,6 +6,8 @@ export interface EventConfig {
   slotDuration: number; // in minutes
   performanceTypes: PerformanceType[];
   timePricing?: TimePricingConfig; // Optional time-based pricing
+  rulesAndRegulations: string; // Rules text for the event
+  waitForRulesCompletion: boolean; // If true, wait for auto-scroll to complete before enabling continue
 }
 
 export interface PerformanceType {
@@ -43,6 +45,32 @@ export const eventConfig: EventConfig = {
   startTime: "09:00", // 9 AM
   endTime: "20:00", // 8 PM
   slotDuration: 10, // 10 minutes
+
+  // Configure rules page behavior - if true, wait for auto-scroll to complete before enabling continue
+  waitForRulesCompletion: true,
+
+  // Rules and Regulations text
+  rulesAndRegulations: `NATANAM FOUNDATION PRESENTS SHYAMOTSAVA 2025
+
+Venue - BANASWADI ANJANEYA TEMPLE
+Date - Saturday ~ 16th August 2025
+Time - 8:00AM until 10:00PM
+
+Rules and Regulations for Classical Dance
+
+1. Only pure classical dance style and pure classical music will be allowed.
+
+2. Only traditional classical dance costume or Kalakshetra practice saree will be allowed.
+
+3. Participants must be completely dressed and present 1 hour prior to their performance.
+
+4. All the performers will receive participation certificates.
+
+5. In case of a group performance, the group should have minimum 3 and maximum 12 performers only.
+
+Natanam Foundation intends to make this festival a very memorable event for all the participants. However, in case of unavoidable situations, some changes in the above mentioned conditions are possible.
+
+Any enquiries regarding the festival, please feel free to contact us on 9449764782/9483614108`,
 
   // Optional: Enable time-based pricing by uncommenting below
   // Example with all 3 tiers:

@@ -249,7 +249,7 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
             <div className="space-y-1 text-sm text-gray-600">
               <p><span className="font-medium">Type:</span> {selectedType.name}</p>
               <p><span className="font-medium">Participant(s):</span> {getParticipantDisplayName()}</p>
-              <p><span className="font-medium">Dance Style:</span> {participantDetails.danceStyle || 'N/A'}</p>
+              <p><span className="font-medium">Dance Style:</span> {participantDetails.performanceCategory || 'N/A'}</p>
             </div>
           </div>
           
@@ -298,10 +298,6 @@ const PaymentSummary: React.FC<PaymentSummaryProps> = ({
                 </div>
               </>
             )}
-            <div className="flex justify-between items-center text-sm text-slate-600">
-              <span>Number of participants:</span>
-              <span>{participantCount}</span>
-            </div>
             <div className="flex justify-between items-center text-sm text-slate-600">
               <span>Number of participants:</span>
               <span>{participantCount}</span>
